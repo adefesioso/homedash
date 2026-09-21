@@ -321,6 +321,23 @@
   .chips .pill b { font-weight: 600; font-family: var(--mono); }
   .chips .led { width: 0.4rem; height: 0.4rem; }
   .chips .check { font-size: 0.9em; }
+  /* Status pills read by a dot, not a colored bubble: the pill itself
+     stays neutral, and a ::before dot carries the color, unless the pill
+     already has its own .led dot (the GPU chip). */
+  .pill.ok, .pill.bad, .pill.accent { background: var(--sunk); color: inherit; }
+  .pill.ok:not(:has(.led))::before,
+  .pill.bad:not(:has(.led))::before,
+  .pill.accent:not(:has(.led))::before {
+    content: '';
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    flex: none;
+  }
+  .pill.ok:not(:has(.led))::before { background: var(--ok); }
+  .pill.bad:not(:has(.led))::before { background: var(--bad); }
+  .pill.accent:not(:has(.led))::before { background: var(--accent); }
   .chips button.small { font-family: var(--mono); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .model-edit { gap: 0.4rem; padding: 0 1rem 0.8rem; }
   .more { border-top: 1px solid var(--line); padding: 0.25rem 1rem 1rem; background: color-mix(in srgb, var(--sunk) 40%, var(--card)); }
