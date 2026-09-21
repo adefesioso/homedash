@@ -918,7 +918,7 @@ func tail(b []byte) string {
 
 func randomCode() string {
 	const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
-	b := make([]byte, 12)
+	b := make([]byte, 5)
 	_, _ = rand.Read(b)
 	for i := range b {
 		b[i] = alphabet[int(b[i])%len(alphabet)]
