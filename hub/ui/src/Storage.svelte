@@ -179,7 +179,7 @@
 
 <h3>Disks</h3>
 <div class="scroll">
-<table>
+<table class="stack">
   <tbody>
     {#each disks as d}
       {@const pct = d.size ? Math.round((100 * (d.size - d.free)) / d.size) : 0}
@@ -219,4 +219,5 @@
   .ws.form { display: grid; }
   .gauge { width: 10rem; vertical-align: middle; }
   tr.dim td { color: var(--muted); }
+  @media (max-width: 560px) { .gauge { width: auto; flex-basis: 100%; } }
 </style>

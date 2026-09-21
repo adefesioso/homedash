@@ -109,7 +109,7 @@
   <Empty text="No jobs yet. A job is one machine's own agent working on that machine; pick a host above and say what should be true when it is done." />
 {:else if jobs.length > 0}
   <div class="scroll">
-  <table>
+  <table class="stack">
     <tbody>
       {#each shown as j (j.id)}
         <tr class="job" class:open={open === j.id} onclick={() => { open = open === j.id ? null : j.id; events = []; load(); }}>
@@ -117,7 +117,7 @@
           <td class="mono"><strong>{j.host}</strong></td>
           <td><span class="pill {j.state === 'done' ? 'ok' : j.state === 'running' ? 'accent' : j.state === 'failed' || j.state === 'needs_you' ? 'bad' : ''}">{j.state.replace('_', ' ')}</span></td>
           <td class="muted small">round {j.rounds}</td>
-          <td class="text">{j.text.slice(0, 90)}</td>
+          <td class="text wide">{j.text.slice(0, 90)}</td>
           <td class="muted small nowrap">{ago(j.started)}</td>
         </tr>
         {#if open === j.id}
@@ -167,4 +167,5 @@
   .stream { font: 11px/1.5 var(--mono); background: var(--sunk); padding: 0.5rem 0.75rem; border-radius: var(--r); max-height: 16rem; overflow: auto; }
   .correct { margin-top: 0.6rem; }
   .correct input { flex: 1; min-width: 12rem; }
+  @media (max-width: 560px) { .text { max-width: none; white-space: normal; } }
 </style>

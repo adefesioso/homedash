@@ -272,7 +272,7 @@
 <section id="s-accounts" class="card">
   <h2>Accounts</h2>
   <div class="scroll">
-  <table>
+  <table class="stack">
     <tbody>
       {#each users as u (u.name)}
         <tr>
@@ -296,7 +296,7 @@
   </div>
   {#if invites.length > 0}
     <div class="scroll">
-    <table>
+    <table class="stack">
       <tbody>
         {#each invites as i (i.code)}
           <tr><td><code>{i.code}</code></td><td class="muted">{i.user ? `a passkey for ${i.user}` : `a new ${i.role}`}</td><td class="muted">good until {new Date(i.expires).toLocaleString()}</td><td class="actions"><button class="small danger quiet" onclick={() => revokeInvite(i.code)}>Revoke</button></td></tr>
@@ -310,7 +310,7 @@
   {#if newToken}<pre use:useEscape={() => (newToken = '')}>{newToken}</pre>{/if}
   {#if tokens.length > 0}
     <div class="scroll">
-    <table><tbody>{#each tokens as t (t.name)}<tr><td><code>{t.name}</code></td><td class="muted">{t.role}</td><td>{#if t.name !== 'hub-agent'}<button class="small danger quiet" onclick={() => revokeToken(t.name)}>Revoke</button>{:else}<span class="muted">the hub's own sessions</span>{/if}</td></tr>{/each}</tbody></table>
+    <table class="stack"><tbody>{#each tokens as t (t.name)}<tr><td><code>{t.name}</code></td><td class="muted">{t.role}</td><td>{#if t.name !== 'hub-agent'}<button class="small danger quiet" onclick={() => revokeToken(t.name)}>Revoke</button>{:else}<span class="muted">the hub's own sessions</span>{/if}</td></tr>{/each}</tbody></table>
     </div>
   {/if}
   <div class="row"><input placeholder="token name, e.g. backup-script" bind:value={tokenName} /><button class="primary" onclick={mintToken} disabled={!tokenName.trim()}>Make a token</button></div>
@@ -334,7 +334,7 @@
   <h2>Secrets</h2>
   {#if secrets.length > 0}
     <div class="scroll">
-    <table>
+    <table class="stack">
       <tbody>
         {#each secrets as sec (sec.name)}
           <tr>
@@ -370,7 +370,7 @@
 <style>
   .layout { display: grid; grid-template-columns: 9rem 1fr; gap: 1.5rem; align-items: start; }
   .toc { position: sticky; top: 1.5rem; display: grid; gap: 0.1rem; }
-  .toc a { color: var(--muted); font-size: 0.9em; padding: 0.3rem 0.6rem; border-radius: var(--r); }
+  .toc a { touch-action: manipulation; color: var(--muted); font-size: 0.9em; padding: 0.3rem 0.6rem; border-radius: var(--r); }
   .toc a:hover { color: var(--fg); background: var(--sunk); text-decoration: none; }
   .sections { display: grid; gap: 1rem; min-width: 0; }
   section { padding: 1.1rem 1.25rem; scroll-margin-top: 1rem; min-width: 0; }
@@ -386,5 +386,6 @@
   td { padding: 0.35rem 0.5rem; }
   ul { margin: 0; padding-left: 1.2rem; }
   pre { user-select: all; }
-  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .toc { position: static; grid-auto-flow: column; overflow-x: auto; min-width: 0; } form.secret { grid-template-columns: 1fr; } }
+  @media (pointer: coarse) { .toc a { padding-block: 0.5rem; } }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .toc { position: static; grid-auto-flow: column; overflow-x: auto; min-width: 0; } .toc a { white-space: nowrap; } form.secret { grid-template-columns: 1fr; } }
 </style>

@@ -175,6 +175,20 @@ td.actions, .actions { white-space: nowrap; text-align: right; }
 .actions button + button { margin-left: 0.25rem; }
 tr.detail td, tr.detail:hover td { background: var(--sunk); }
 .scroll { overflow-x: auto; }
+/* On a phone a .stack table gives up columns: each row is a card of
+   wrapped cells, and a detail row or the actions span the full width
+   instead of the table's scrolled width. A cell whose header carried the
+   meaning names itself with data-label. */
+@media (max-width: 560px) {
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tfoot { display: block; }
+  table.stack tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.8rem; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--line); }
+  table.stack tbody tr:last-child { border-bottom: 0; }
+  table.stack td, table.stack th { display: block; border: 0; padding: 0; min-width: 0; }
+  table.stack td.actions, table.stack td.wide, table.stack tr.detail > td { flex-basis: 100%; text-align: left; white-space: normal; }
+  table.stack td[data-label]::before { content: attr(data-label) ' '; color: var(--muted); font-size: 0.78em; }
+  table.stack tbody tr:hover td { background: none; }
+}
 
 /* Status: an LED and, when words are needed, a pill */
 .led {
@@ -199,6 +213,19 @@ dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* A finger, not a pointer: room to hit, and 16px text in a field so iOS
+   does not zoom the page on focus. */
+button, .btn, summary { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+@media (pointer: coarse) {
+  button, .btn, input:not([type=checkbox]):not([type=radio]), select { min-height: 2.75rem; }
+  button.small { min-height: 2.4rem; padding-inline: 0.65rem; }
+  button.link, button.dismiss { min-height: 0; }
+  input[type=checkbox], input[type=radio] { width: 1.15rem; height: 1.15rem; }
+  input, select, textarea { font-size: 16px; }
+  .actions button + button { margin-left: 0.4rem; }
+  details > summary { padding-block: 0.5rem; }
+}
 
 /* A viewer's affordance: the panel greys what a viewer cannot do, but
    stays clickable, because the API is what actually refuses it

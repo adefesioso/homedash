@@ -71,6 +71,6 @@
 <p class="status">{status}{#if readOnly && live} · read only — viewers watch{/if}</p>
 
 <style>
-  .term { height: min(70vh, 40rem); background: #15181c; border-radius: var(--r); padding: 0.5rem; }
+  .term { height: min(70dvh, 40rem); background: #15181c; border-radius: var(--r); padding: 0.5rem; }
   .status { color: var(--muted); font-size: 0.8em; font-family: var(--mono); margin: 0.4rem 0 0; }
 </style>

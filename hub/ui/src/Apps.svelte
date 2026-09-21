@@ -132,7 +132,7 @@
   <Empty text="No stacks on any remote. Pick one from the Catalog tab, or paste a compose file." action="Install a stack" onaction={() => (install = { name: '', compose: '', env: '', needs: { cores: 1, memoryMB: 256, diskGB: 1, gpu: false }, host: '', verdicts: null })} />
 {:else if !loadError || loading}
   <div class="scroll">
-  <table>
+  <table class="stack">
     <tbody>
       {#each stacks as s (s.host + '/' + s.name)}
         {@const up = /running|up/i.test(s.status)}
@@ -140,7 +140,7 @@
           <td><span class="led {up ? 'ok' : ''}"></span> <strong>{s.name}</strong> {#if !s.managed}<span class="muted small">(deployed by hand)</span>{/if}</td>
           <td class="mono">{s.host}</td>
           <td class="muted">{s.status}</td>
-          <td class="small">{#each s.containers as c}<div>{c.name} <span class="muted">{c.state} · {c.ports || c.image}</span></div>{/each}</td>
+          <td class="small wide">{#each s.containers as c}<div>{c.name} <span class="muted">{c.state} · {c.ports || c.image}</span></div>{/each}</td>
           <td class="actions">
             <button class="small quiet" onclick={() => toggle(s)} aria-expanded={open === `${s.host}/${s.name}`}>{open === `${s.host}/${s.name}` ? 'Close' : 'Details'}</button>
             <button class="small" disabled={busy} onclick={() => action(s, 'start')}>Start</button>

@@ -117,7 +117,7 @@
   <Empty text="No sessions yet. A session is a seat at the fleet; open one and ask." action={status?.ready ? 'New session' : undefined} onaction={openSession} />
 {:else if !loadError}
   <div class="scroll">
-  <table>
+  <table class="stack">
     <tbody>
       {#each shown as s (s.id)}
         <tr class:live={s.live}>
@@ -135,7 +135,7 @@
           </td>
         </tr>
         {#if history_ === s.id}
-          <tr class="history"><td colspan="4">{#key s.id}<Terminal id={s.id} {role} live={false} />{/key}</td></tr>
+          <tr class="history detail"><td colspan="4">{#key s.id}<Terminal id={s.id} {role} live={false} />{/key}</td></tr>
         {/if}
       {/each}
     </tbody>
@@ -160,6 +160,6 @@
   tr.history td { opacity: 1; padding: 0.4rem 0 0.8rem; }
   .notice { color: var(--muted); padding: 0.75rem 1rem; }
   .sname { word-break: break-word; }
-  .term-placeholder { height: min(70vh, 40rem); background: var(--sunk); border-radius: var(--r); padding: 0.5rem; }
+  .term-placeholder { height: min(70dvh, 40rem); background: var(--sunk); border-radius: var(--r); padding: 0.5rem; }
   .status { color: var(--muted); font-size: 0.8em; font-family: var(--mono); margin: 0.4rem 0 0; }
 </style>

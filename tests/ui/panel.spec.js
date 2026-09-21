@@ -200,12 +200,43 @@ test('at 390px no tab widens the page itself', async ({ page, account }) => {
   // Peers/Models already used, so the table scrolls sideways and the
   // document does not.
   await page.setViewportSize({ width: 390, height: 844 });
+  const nav = page.getByRole('navigation', { name: 'Sections' });
   for (const label of tabs) {
-    await page.getByRole('navigation').getByRole('button', { name: label, exact: true }).click();
+    await nav.getByRole('button', { name: label, exact: true }).click();
     await expect(page.locator('main')).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth === window.innerWidth),
       { message: `${label} overflows the page at 390px` }).toBe(true);
+    // README: the strip scrolls the active tab into view — the whole
+    // button, not a sliver under the edge fade.
+    const box = await nav.getByRole('button', { name: label, exact: true }).boundingBox();
+    expect(box.x, `${label} is off the strip's left edge`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${label} is off the strip's right edge`).toBeLessThanOrEqual(390);
   }
+  // README: the strip is pinned — a tab is a thumb away from the bottom
+  // of a long page, not a scroll back to the top.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  expect((await nav.boundingBox()).y).toBeGreaterThanOrEqual(0);
+});
+
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true });
+  test('controls are tall enough to hit and fields do not zoom', async ({ page, account }) => {
+    // README: on a coarse pointer every control is ≥38px tall and text
+    // inputs are 16px so iOS does not zoom on focus. Playwright's
+    // hasTouch is what makes (pointer: coarse) match in chromium.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('navigation', { name: 'Sections' }).getByRole('button', { name: 'Tasks', exact: true }).click();
+    await page.getByRole('button', { name: 'New task' }).click();
+    const form = page.locator('section.card.form');
+    await expect(form).toBeVisible();
+    expect(await form.getByLabel('Name').evaluate((e) => getComputedStyle(e).fontSize)).toBe('16px');
+    for (const b of await form.getByRole('button').all()) {
+      expect((await b.boundingBox()).height, `${await b.textContent()} is too short to tap`).toBeGreaterThanOrEqual(38);
+    }
+    await expect(form.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await form.getByRole('button', { name: 'Cancel' }).click();
+    await expect(form).toBeHidden();
+  });
 });
 
 test('Escape closes the New remote card', async ({ page, account }) => {

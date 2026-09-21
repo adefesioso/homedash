@@ -76,6 +76,12 @@
   $effect(() => { document.title = hub && known ? `${hub.name} · HomeDash` : `${title} · HomeDash`; });
 
   $effect(() => { location.hash = current; });
+  // On a phone the rail is a strip that scrolls sideways; the tab that
+  // just opened (a link into #settings, say) may sit past its edge.
+  $effect(() => {
+    void current; void auth; // the strip exists only once signed in
+    document.querySelector('nav button.active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  });
   // The address bar is a way in too: a link into the panel, or the CLI
   // opening #cli?… in a tab that already has it.
   $effect(() => {
@@ -237,10 +243,16 @@
   .title { margin: 0 0 1rem; font-size: 1.3rem; font-weight: 650; letter-spacing: -0.02em; }
 
   @media (max-width: 860px) {
-    .shell { grid-template-columns: 1fr; }
-    aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0.75rem 1rem; }
+    .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    /* The strip stays pinned, so a tab is a thumb away from the bottom
+       of a long page; z-index over the tables' shadows behind it. */
+    aside {
+      position: sticky; top: 0; z-index: 2; height: auto; min-width: 0; gap: 0;
+      border-right: 0; border-bottom: 1px solid var(--line);
+      padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0.5rem;
+    }
     aside header { grid-template-columns: auto 1fr auto; align-items: center; padding: 0; }
-    h1 { margin: 0; }
+    h1 { margin: 0; font-size: 0.95rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .who { text-align: right; }
     nav {
       flex-direction: row; overflow-x: auto; gap: 0.25rem; margin: 0.5rem -1rem 0; padding: 0 1rem; scrollbar-width: none;
@@ -254,6 +266,9 @@
     nav button { width: auto; white-space: nowrap; padding: 0.4rem 0.6rem; }
     nav button.active { box-shadow: inset 0 -2px 0 var(--accent); }
     .version { display: none; }
-    main { padding: 1rem 1rem 3rem; }
+    main { padding: 1rem 1rem max(3rem, env(safe-area-inset-bottom)); }
+  }
+  @media (max-width: 560px) {
+    .who { display: none; } /* name and role are in Settings */
   }
 </style>

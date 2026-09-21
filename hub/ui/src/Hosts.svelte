@@ -250,13 +250,15 @@
             <h4>What fits</h4>
             <div class="row"><button disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, async () => { fit = { ...fit, [h.id]: await get(`/hosts/${h.id}/fit?n=8`) }; })}>Ask llmfit on {h.name}</button></div>
             {#if fit[h.id]}
-              <table>
+              <div class="scroll">
+              <table class="stack">
                 <tbody>
                   {#each fit[h.id].models as m}
                     <tr><td><code>{m.ollama}</code></td><td>{m.fit}</td><td>{m.tokensPerSec ? `${m.tokensPerSec.toFixed(1)} tok/s` : ''}</td><td>{m.memoryGB.toFixed(1)} GB</td><td class="muted">{m.capabilities.join(', ')}</td></tr>
                   {/each}
                 </tbody>
               </table>
+              </div>
               {#if fit[h.id].models.length === 0}<p class="muted">llmfit found nothing pullable that fits.</p>{/if}
             {/if}
             <h4>Address</h4>

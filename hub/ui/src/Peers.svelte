@@ -67,24 +67,24 @@
   <Empty text="No hubs discovered yet. Discovery fills this list; approval is yours." />
 {:else if !loadError}
   <div class="scroll">
-  <table>
+  <table class="stack">
     <thead><tr><th>Hub</th><th>Offer</th><th>Approved</th><th>Max concurrent</th><th>Per hour</th><th>Record</th><th>Sent / served (day · week · all)</th><th>Fronts</th><th></th></tr></thead>
     <tbody>
       {#each peers as p (p.id)}
         <tr class:off={!p.connected}>
           <td><span class="led {p.connected ? 'ok' : ''}"></span> <strong>{p.name || short(p.id)}</strong><br /><code class="small muted">{p.id}</code><br /><span class="muted small">{p.connected ? 'connected' : `last seen ${ago(p.lastSeen)}`}</span></td>
-          <td class="small">{#if p.offer}{p.offer.free ? 'free' : 'busy'} · {p.offer.models.join(', ') || 'no models'}{:else}<span class="muted">—</span>{/if}</td>
-          <td><input type="checkbox" bind:checked={p.approved} onchange={() => save(p)} /></td>
-          <td><input type="number" min="0" bind:value={p.maxConcurrent} onchange={() => save(p)} /></td>
-          <td><input type="number" min="0" bind:value={p.perHour} onchange={() => save(p)} /></td>
-          <td class="small">{#if p.record.samples || p.record.accepted}accepts {Math.round(p.record.accepted * 100)}% · finishes {Math.round(p.record.finished * 100)}% · first token {Math.round(p.record.medianTTFT)} ms{:else}<span class="muted">no record yet</span>{/if}</td>
-          <td class="small mono">
+          <td class="small" data-label="offer">{#if p.offer}{p.offer.free ? 'free' : 'busy'} · {p.offer.models.join(', ') || 'no models'}{:else}<span class="muted">—</span>{/if}</td>
+          <td data-label="approved"><input type="checkbox" bind:checked={p.approved} onchange={() => save(p)} /></td>
+          <td data-label="max concurrent"><input type="number" min="0" bind:value={p.maxConcurrent} onchange={() => save(p)} /></td>
+          <td data-label="per hour"><input type="number" min="0" bind:value={p.perHour} onchange={() => save(p)} /></td>
+          <td class="small" data-label="record">{#if p.record.samples || p.record.accepted}accepts {Math.round(p.record.accepted * 100)}% · finishes {Math.round(p.record.finished * 100)}% · first token {Math.round(p.record.medianTTFT)} ms{:else}<span class="muted">no record yet</span>{/if}</td>
+          <td class="small mono wide" data-label="sent / served (day · week · all)">
             {#each Object.entries(p.counts.sent ?? {}) as [m, v]}<div>→ {m}: {v.join(' · ')}</div>{/each}
             {#each Object.entries(p.counts.served ?? {}) as [m, v]}<div>← {m}: {v.join(' · ')}</div>{/each}
             {#if p.counts.fronted?.[2]}<div>← carried for its services: {b3(p.counts.fronted)}</div>{/if}
             {#if p.counts.origin?.[2]}<div>→ it carried for yours: {b3(p.counts.origin)}</div>{/if}
           </td>
-          <td class="small">
+          <td class="small wide" data-label="fronts">
             {#if p.fronts.length === 0}<span class="muted">nothing published to you</span>{/if}
             {#each p.fronts as f (f.service)}
               <div class="front" class:gone={!f.offered}>
@@ -109,7 +109,8 @@
 {#if services.length === 0}
   <p class="help">Nothing published. <strong>Publish</strong> on a stack in Apps, or <strong>Publish a port</strong> on a host card, names one port on one machine you own and the peers that may front it.</p>
 {:else}
-  <table>
+  <div class="scroll">
+  <table class="stack">
     <tbody>
       {#each services as sv (sv.name)}
         <tr>
@@ -121,6 +122,7 @@
       {/each}
     </tbody>
   </table>
+  </div>
 {/if}
 
 <style>
@@ -129,7 +131,7 @@
   .addrs pre { margin-top: 0.4rem; font-size: 0.78em; }
   .front { display: grid; gap: 0.2rem; margin-bottom: 0.4rem; }
   .front.gone { opacity: 0.6; }
-  .front input:not([type]) { width: 14rem; padding: 0.25rem 0.4rem; }
+  .front input:not([type]) { width: min(14rem, 100%); padding: 0.25rem 0.4rem; }
   tr.off td { opacity: 0.6; }
   tfoot td { color: var(--muted); border-bottom: 0; }
   input[type=number] { width: 4.5rem; padding: 0.3rem; }

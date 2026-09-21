@@ -100,7 +100,8 @@
 {#if !loadError && tasks.length === 0}
   <Empty text="Nothing scheduled in the house." action="New task" onaction={() => (edit = blank())} />
 {:else if !loadError}
-  <table>
+  <div class="scroll">
+  <table class="stack">
     <tbody>
       {#each tasks as t (t.id)}
         <tr class:off={!t.enabled}>
@@ -134,6 +135,7 @@
       {/each}
     </tbody>
   </table>
+  </div>
 {/if}
 
 <style>

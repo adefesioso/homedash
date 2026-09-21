@@ -211,6 +211,10 @@ PR 2 added: an unknown `/api` path answers 404, never the panel's HTML.
 | Claim | Runs | Untested because |
 | --- | --- | --- |
 | Every tab fits a phone (390px) with no page-level horizontal scroll | `ui/panel.spec.js` "at 390px no tab widens the page itself" | 860px and 1280px overflow (X-9) are fixed by the same `.scroll` wrapper but not separately asserted |
+| The tab strip stays pinned under 860px and scrolls the active tab into view | `ui/panel.spec.js` "at 390px no tab widens the page itself" | |
+| On a coarse pointer every control is ≥38px tall and text inputs are 16px | `ui/panel.spec.js` "controls are tall enough to hit and fields do not zoom" | only the Tasks form; the rule is one `(pointer: coarse)` block in `app.css` |
+| Under 560px a `table.stack` lays each row out as a card with its detail row full width | — | untested: a layout claim with no functional signal; seen in a 390px screenshot pass |
+| The panel installs to a home screen (`manifest.webmanifest`, icons) | — | untested: a browser-side install prompt with no lab signal |
 | Escape dismisses an open inline card | `ui/panel.spec.js` "Escape closes the New remote card" | only Hosts' New remote card; the other inline forms share the same mechanism |
 | A tab's hash is matched loosely, not only its exact lowercase id | `ui/panel.spec.js` "#Hosts, capitalised, still opens Hosts" | |
 

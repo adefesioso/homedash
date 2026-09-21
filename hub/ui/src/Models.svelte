@@ -102,7 +102,7 @@
     <table class="grid">
       <thead>
         <tr>
-          <th></th>
+          <th class="pin"></th>
           {#each grid as m}
             <th>
               <div class="host"><span class="led {m.online ? (m.busy ? 'busy' : 'ok') : 'bad'}"></span> {m.host}{#if m.peer}<span class="pill small">peer</span>{/if}</div>
@@ -121,7 +121,7 @@
       <tbody>
         {#each models as model}
           <tr>
-            <td><code>{model}</code></td>
+            <td class="pin"><code>{model}</code></td>
             {#each grid as m}
               {@const c = cell(m, model)}
               <td class:has={c}>
@@ -151,7 +151,8 @@
     {#if fit[m.host]}
       <section class="card fit">
         <h3>What fits on {m.host}</h3>
-        <table>
+        <div class="scroll">
+        <table class="stack">
           <tbody>
             {#each fit[m.host].models as f}
               <tr>
@@ -162,6 +163,7 @@
             {/each}
           </tbody>
         </table>
+        </div>
         {#if fit[m.host].models.length === 0}<p class="muted">llmfit found nothing pullable that fits.</p>{/if}
       </section>
     {/if}
@@ -170,6 +172,9 @@
 
 <style>
   .name { min-width: 16rem; }
+  @media (max-width: 560px) { .name { min-width: 0; } }
+  /* The matrix scrolls sideways; the model name stays put. */
+  table.grid .pin { position: sticky; left: 0; z-index: 1; background: var(--card); }
   table.grid th { font-size: 0.9em; color: var(--fg); }
   table.grid th .host { font-family: var(--mono); font-weight: 600; display: flex; align-items: center; gap: 0.4rem; }
   table.grid th label { margin: 0.3rem 0; }

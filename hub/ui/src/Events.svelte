@@ -45,7 +45,7 @@
 {:else}
   <p class="muted small">showing the newest {events.length}</p>
   <div class="scroll">
-  <table>
+  <table class="stack">
     <tbody>
       {#each events as e (e.id)}
         <tr>
@@ -66,4 +66,5 @@
   .when { color: var(--muted); white-space: nowrap; font-family: var(--mono); font-size: 0.82em; width: 11rem; }
   .pill { font-family: var(--mono); margin-left: 0.5rem; }
   .message { max-width: 30rem; overflow-wrap: break-word; }
+  @media (max-width: 560px) { table { table-layout: auto; } .when { width: auto; } .message { max-width: none; } }
 </style>

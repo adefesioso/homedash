@@ -83,7 +83,7 @@
   <Empty text={scanners.length === 0 ? 'No remote has scanned yet. Scans run on the online remotes every ten minutes.' : filter === 'lan' ? 'No neighbours seen yet.' : filter === 'wifi' ? 'No Wi-Fi network seen — no online remote has a wireless card.' : 'No Bluetooth device seen — no online remote has a radio.'} action={scanners.length === 0 ? 'Scan now' : undefined} onaction={scanNow} />
 {:else if !loadError}
   <div class="scroll">
-  <table>
+  <table class="stack">
     <tbody>
       {#each shown as d (d.id)}
         <tr class:stale={stale(d)}>
