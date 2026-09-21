@@ -178,12 +178,12 @@
           <span class="muted small">{ago(h.lastSeen)}</span>
         </header>
         {#if f.cores}
+          <Stat label="memory" of={bytes(f.memTotal)} pct={memPct(f)} hot={memPct(f) > 85} min="11rem">{bytes(f.memUsed)}</Stat>
           <div class="stats">
             <Stat label="cores">{f.cores}</Stat>
             <Stat label="load">{f.load1}</Stat>
-            <Stat label="memory" of={bytes(f.memTotal)} pct={memPct(f)} hot={memPct(f) > 85} min="11rem">{bytes(f.memUsed)}</Stat>
-            {#if f.gpu}<Stat label={f.gpu.busy ? 'gpu busy' : 'gpu idle'}><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span> {f.gpu.name || 'GPU'}</Stat>{/if}
             {#if f.docker}<Stat label="docker">{f.docker}</Stat>{/if}
+            {#if f.gpu}<Stat label={f.gpu.busy ? 'gpu busy' : 'gpu idle'}><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span> {f.gpu.name || 'GPU'}</Stat>{/if}
           </div>
           <div class="mounts">
             {#each f.mounts ?? [] as m}
