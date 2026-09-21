@@ -102,6 +102,13 @@
     if (badModel(v)) { modelEdit.err = 'provider/model such as anthropic/claude-sonnet-5 or homedash/qwen2.5:3b'; return; }
     modelEdit = null;
     await act(h, () => put(`/hosts/${h.id}/agent`, { model: v }));
+    // The write to config.yml lands synchronously, but the card shows
+    // facts.agent.model, which only catches up once the background Sweep
+    // the save kicks off finishes its own SSH round trip — the load()
+    // act() just did almost always beats it back. Patch the just-loaded
+    // facts so the card doesn't flash back to the old value; the next
+    // poll (or heartbeat) confirms it for real.
+    hosts = hosts.map((x) => (x.id === h.id && x.facts?.agent ? { ...x, facts: { ...x.facts, agent: { ...x.facts.agent, model: v } } } : x));
   }
   const rootFree = (h) => (metrics[h.id] ?? []).map((m) => { try { return (typeof m.mounts === 'string' ? JSON.parse(m.mounts) : m.mounts)['/']; } catch { return NaN; } });
   const facts = (h) => h.facts ?? {};
