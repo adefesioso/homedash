@@ -31,7 +31,7 @@ func installed(ctx context.Context, root string) bool {
 	if err != nil {
 		return false
 	}
-	// `omp --version` prints "omp/18.1.21".
+// `omp --version` prints "omp/<version>"; compare without the "v".
 	got := strings.TrimSpace(string(out))
 	return got == "omp/"+strings.TrimPrefix(OmpVersion, "v")
 }
