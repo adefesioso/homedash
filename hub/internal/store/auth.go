@@ -154,18 +154,20 @@ func (s *Store) DeleteUser(ctx context.Context, name string) error {
 	return err
 }
 
-// NewSession mints a session token good for thirty days.
+// NewSession mints a session token good for thirty days. Only its hash
+// is stored, like an API token: a read of the state DB (or a backup)
+// yields no live session.
 func (s *Store) NewSession(ctx context.Context, userID []byte) (string, error) {
 	tok := randomToken()
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO sessions(token, user_id, expires) VALUES (?, ?, ?)`,
-		tok, userID, time.Now().Add(30*24*time.Hour).UTC().Format(time.RFC3339))
+		hashToken(tok), userID, time.Now().Add(30*24*time.Hour).UTC().Format(time.RFC3339))
 	return tok, err
 }
 
 // SessionUser resolves a live session to its account.
 func (s *Store) SessionUser(ctx context.Context, token string) (*User, error) {
 	var id []byte
-	err := s.RO.QueryRowContext(ctx, `SELECT user_id FROM sessions WHERE token = ? AND expires > ?`, token, time.Now().UTC().Format(time.RFC3339)).Scan(&id)
+	err := s.RO.QueryRowContext(ctx, `SELECT user_id FROM sessions WHERE token = ? AND expires > ?`, hashToken(token), time.Now().UTC().Format(time.RFC3339)).Scan(&id)
 	if err != nil {
 		return nil, errors.New("no session")
 	}
@@ -174,7 +176,7 @@ func (s *Store) SessionUser(ctx context.Context, token string) (*User, error) {
 
 // DeleteSession signs out.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
-	_, err := s.DB.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
+	_, err := s.DB.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, hashToken(token))
 	return err
 }
 
