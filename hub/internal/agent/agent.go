@@ -86,7 +86,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	if err := a.writeMCPConfig(); err != nil {
 		return err
 	}
-	if err := a.writeContext(); err != nil {
+	if err := a.WriteContext(ctx); err != nil {
 		return err
 	}
 	// The hub's pool as a provider for the hub's own windows: the router

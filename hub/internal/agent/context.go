@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // standingInstructions is what every window starts knowing. omp loads
@@ -111,6 +113,25 @@ what needs a backup task of its own. A job whose report the script does
 not yet reflect is a job you have not finished.
 `
 
-func (a *Agent) writeContext() error {
-	return os.WriteFile(filepath.Join(a.root(), "agent", "AGENTS.md"), []byte(standingInstructions), 0o600)
+// WriteContext rewrites AGENTS.md, folding in the person's own rules
+// (Settings' "agent.rules", one per line) after the standing
+// instructions. Called on every start and again whenever Rules is
+// saved, so a change takes effect without a restart.
+func (a *Agent) WriteContext(ctx context.Context) error {
+	body := standingInstructions
+	if raw, err := a.Store.Setting(ctx, "agent.rules"); err == nil {
+		var lines []string
+		for _, l := range strings.Split(raw, "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				lines = append(lines, "- "+l)
+			}
+		}
+		if len(lines) > 0 {
+			body += "\n## Rules the person has set\n\n" +
+				"These never override what the hub refuses (see above) — a rule\n" +
+				"that would need a refused action is refused, not followed.\n\n" +
+				strings.Join(lines, "\n") + "\n"
+		}
+	}
+	return os.WriteFile(filepath.Join(a.root(), "agent", "AGENTS.md"), []byte(body), 0o600)
 }

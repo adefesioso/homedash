@@ -5,7 +5,8 @@ build` and carried into the binary by `embed.go`, so there is no Node at
 runtime — the two typefaces (Inter, JetBrains Mono, latin only) ride
 along in the bundle rather than being fetched. Each tab in `src/` is one
 file named for it — Hosts, Network, Storage, Apps, Catalog, Models,
-Agents (with Terminal), Jobs, Tasks, Peers, Health, Events, Settings —
+Agents (with Terminal), Jobs, Tasks, Peers, Health, Events, Rules,
+Settings —
 and
 `App.svelte` is the shell: sign-in through `Auth.svelte`, then a rail
 down the left with

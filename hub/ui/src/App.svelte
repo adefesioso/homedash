@@ -16,6 +16,7 @@
   import Empty from './Empty.svelte';
   import Health from './Health.svelte';
   import Events from './Events.svelte';
+  import Rules from './Rules.svelte';
   import Settings from './Settings.svelte';
   import Cli from './Cli.svelte';
 
@@ -43,6 +44,7 @@
     { name: 'Hub', tabs: [
       { id: 'health',   label: 'Health' },
       { id: 'events',   label: 'Events' },
+      { id: 'rules',    label: 'Rules' },
       { id: 'settings', label: 'Settings' },
     ] },
   ];
@@ -200,6 +202,8 @@
       <Health />
     {:else if current === 'events'}
       <Events />
+    {:else if current === 'rules'}
+      <Rules />
     {:else if current === 'settings'}
       <Settings {hub} user={auth.user} onauth={loadAuth} />
     {:else}

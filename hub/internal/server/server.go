@@ -247,7 +247,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 
 // settingKeys is the whole of what the panel may read or write here; a
 // key outside it is refused rather than stored.
-var settingKeys = []string{"agent.default_model", "agent.remote_model", "agent.rounds", "jobs.retention", "jobs.timeout", "jobs.sudo", "jobs.memory_max", "jobs.cpu_quota", "notify.target", "notify.disk_percent", "network.scan_minutes", "network.forget_days", "hub.lan_addr", "router.queue", "router.queue_wait", "space.name", "space.enabled", "space.serve", "space.unknown", "space.default_concurrent", "space.default_per_hour", "space.ceiling", "space.per_hour", "space.connections", "space.peer_connections", "space.peer_kbps", "space.hub_name", "space.network", "space.bootstrap", "space.psk", "space.reachable", "space.port", "auth.rpid", "auth.origins"}
+var settingKeys = []string{"agent.default_model", "agent.remote_model", "agent.rounds", "agent.rules", "jobs.retention", "jobs.timeout", "jobs.sudo", "jobs.memory_max", "jobs.cpu_quota", "notify.target", "notify.disk_percent", "network.scan_minutes", "network.forget_days", "hub.lan_addr", "router.queue", "router.queue_wait", "space.name", "space.enabled", "space.serve", "space.unknown", "space.default_concurrent", "space.default_per_hour", "space.ceiling", "space.per_hour", "space.connections", "space.peer_connections", "space.peer_kbps", "space.hub_name", "space.network", "space.bootstrap", "space.psk", "space.reachable", "space.port", "auth.rpid", "auth.origins"}
 
 // boolSettingKeys are the checkboxes in the Space section of Settings;
 // whatever a caller sends ("1", "on", "true" — settingBool in
@@ -312,6 +312,14 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := s.Store.SetSetting(r.Context(), k, v); err != nil {
+			http.Error(w, "settings unavailable", http.StatusInternalServerError)
+			return
+		}
+	}
+	// Rules just changed: rewrite AGENTS.md now, so the hub agent's next
+	// window sees it without waiting for a restart.
+	if _, ok := in["agent.rules"]; ok {
+		if err := s.Agent.WriteContext(r.Context()); err != nil {
 			http.Error(w, "settings unavailable", http.StatusInternalServerError)
 			return
 		}
