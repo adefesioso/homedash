@@ -4,6 +4,7 @@
   import Icon from './Icon.svelte';
   import Agents from './Agents.svelte';
   import Jobs from './Jobs.svelte';
+  import Usage from './Usage.svelte';
   import Hosts from './Hosts.svelte';
   import Network from './Network.svelte';
   import Models from './Models.svelte';
@@ -36,6 +37,7 @@
     { name: 'Work', tabs: [
       { id: 'agents',   label: 'Agents' },
       { id: 'jobs',     label: 'Jobs' },
+      { id: 'usage',    label: 'Usage' },
       { id: 'tasks',    label: 'Tasks' },
     ] },
     { name: 'Space', tabs: [
@@ -188,6 +190,8 @@
       <Agents role={auth.user.role} />
     {:else if current === 'jobs'}
       <Jobs />
+    {:else if current === 'usage'}
+      <Usage />
     {:else if current === 'tasks'}
       <Tasks />
     {:else if current === 'apps'}

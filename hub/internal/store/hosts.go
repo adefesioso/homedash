@@ -54,6 +54,29 @@ CREATE TABLE IF NOT EXISTS metrics_hourly (
 	mounts    TEXT NOT NULL,
 	PRIMARY KEY (host_id, hour)
 );
+CREATE TABLE IF NOT EXISTS usage (
+	host_id     INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+	job_id      INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+	at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+	model       TEXT NOT NULL,
+	input       INTEGER NOT NULL,
+	output      INTEGER NOT NULL,
+	cache_read  INTEGER NOT NULL,
+	cache_write INTEGER NOT NULL,
+	cost        REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS usage_host_at ON usage(host_id, at);
+CREATE TABLE IF NOT EXISTS usage_hourly (
+	host_id     INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+	hour        TEXT NOT NULL,
+	input       INTEGER NOT NULL,
+	output      INTEGER NOT NULL,
+	cache_read  INTEGER NOT NULL,
+	cache_write INTEGER NOT NULL,
+	cost        REAL NOT NULL,
+	calls       INTEGER NOT NULL,
+	PRIMARY KEY (host_id, hour)
+);
 `
 
 // ErrNoHost is an operation naming a host the hub does not have. The hub
@@ -385,6 +408,171 @@ func (s *Store) HostMetrics(ctx context.Context, hostID int64, hours int) ([]Met
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// Usage is token cost for one model reply, on the hub's account of a
+// job's round (RecordUsage) or summed into an hour (HostUsage,
+// UsageTotals) — the counters an omp `message_end` reports: input is
+// prompt tokens minus what came off cache, cacheRead/cacheWrite the
+// cache's own share, and cost the provider's own USD estimate.
+type Usage struct {
+	At         string  `json:"at"`
+	Model      string  `json:"model,omitempty"`
+	Input      int64   `json:"input"`
+	Output     int64   `json:"output"`
+	CacheRead  int64   `json:"cacheRead"`
+	CacheWrite int64   `json:"cacheWrite"`
+	Cost       float64 `json:"cost"`
+	Calls      int64   `json:"calls,omitempty"`
+}
+
+// RecordUsage keeps one assistant reply's token counts, attributed to
+// the job's host and the job itself.
+func (s *Store) RecordUsage(ctx context.Context, hostID, jobID int64, u Usage) error {
+	_, err := s.DB.ExecContext(ctx,
+		`INSERT INTO usage(host_id, job_id, model, input, output, cache_read, cache_write, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		hostID, jobID, u.Model, u.Input, u.Output, u.CacheRead, u.CacheWrite, u.Cost)
+	return err
+}
+
+// RollupUsage sums the raw rows into usage_hourly and drops raw rows
+// older than two days, the same shape as RollupMetrics: only the hours
+// not yet rolled up for a host are read.
+func (s *Store) RollupUsage(ctx context.Context) error {
+	rows, err := s.RO.QueryContext(ctx,
+		`SELECT host_id, strftime('%Y-%m-%dT%H:00:00Z', at) AS hour, input, output, cache_read, cache_write, cost
+		 FROM usage m
+		 WHERE at < strftime('%Y-%m-%dT%H:00:00Z','now')
+		   AND at >= COALESCE((SELECT strftime('%Y-%m-%dT%H:00:00Z', MAX(hour), '+1 hour') FROM usage_hourly h WHERE h.host_id = m.host_id), '')
+		 ORDER BY host_id, hour`)
+	if err != nil {
+		return err
+	}
+	type acc struct {
+		n, input, output, cacheRead, cacheWrite int64
+		cost                                    float64
+	}
+	type key struct {
+		host int64
+		hour string
+	}
+	accs := map[key]*acc{}
+	for rows.Next() {
+		var host int64
+		var hour string
+		var input, output, cacheRead, cacheWrite int64
+		var cost float64
+		if err := rows.Scan(&host, &hour, &input, &output, &cacheRead, &cacheWrite, &cost); err != nil {
+			rows.Close()
+			return err
+		}
+		k := key{host, hour}
+		a := accs[k]
+		if a == nil {
+			a = &acc{}
+			accs[k] = a
+		}
+		a.n++
+		a.input += input
+		a.output += output
+		a.cacheRead += cacheRead
+		a.cacheWrite += cacheWrite
+		a.cost += cost
+	}
+	rows.Close()
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for k, a := range accs {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT OR REPLACE INTO usage_hourly(host_id, hour, input, output, cache_read, cache_write, cost, calls) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			k.host, k.hour, a.input, a.output, a.cacheRead, a.cacheWrite, a.cost, a.n); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM usage WHERE at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 days')`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// HostUsage returns one host's usage, bucketed by hour, oldest first:
+// the hourly rollup before the last day, the raw rows since — the same
+// two-tier series HostMetrics reads.
+func (s *Store) HostUsage(ctx context.Context, hostID int64, hours int) ([]Usage, error) {
+	since := time.Now().Add(-time.Duration(hours) * time.Hour).UTC().Format(time.RFC3339)
+	rows, err := s.RO.QueryContext(ctx,
+		`SELECT hour, input, output, cache_read, cache_write, cost, calls FROM usage_hourly WHERE host_id = ? AND hour >= ?
+		 UNION ALL
+		 SELECT strftime('%Y-%m-%dT%H:00:00Z', at), input, output, cache_read, cache_write, cost, 1 FROM usage WHERE host_id = ? AND at >= ?
+		 ORDER BY 1`, hostID, since, hostID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Usage{}
+	for rows.Next() {
+		var u Usage
+		if err := rows.Scan(&u.At, &u.Input, &u.Output, &u.CacheRead, &u.CacheWrite, &u.Cost, &u.Calls); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// UsageTotals sums every host's usage over the window, newest-heaviest
+// first by total tokens — the fleet-wide comparison the Usage tab
+// leads with, to see whether dispatch actually spreads across remotes.
+// A host with no rows in the window still appears, at zero, so an idle
+// remote is as visible as a busy one.
+func (s *Store) UsageTotals(ctx context.Context, hours int) ([]HostUsage, error) {
+	since := time.Now().Add(-time.Duration(hours) * time.Hour).UTC().Format(time.RFC3339)
+	rows, err := s.RO.QueryContext(ctx,
+		`SELECT h.id, h.name,
+			COALESCE((SELECT SUM(input) FROM usage_hourly u WHERE u.host_id = h.id AND u.hour >= ?), 0)
+				+ COALESCE((SELECT SUM(input) FROM usage u WHERE u.host_id = h.id AND u.at >= ?), 0),
+			COALESCE((SELECT SUM(output) FROM usage_hourly u WHERE u.host_id = h.id AND u.hour >= ?), 0)
+				+ COALESCE((SELECT SUM(output) FROM usage u WHERE u.host_id = h.id AND u.at >= ?), 0),
+			COALESCE((SELECT SUM(cache_read) FROM usage_hourly u WHERE u.host_id = h.id AND u.hour >= ?), 0)
+				+ COALESCE((SELECT SUM(cache_read) FROM usage u WHERE u.host_id = h.id AND u.at >= ?), 0),
+			COALESCE((SELECT SUM(cache_write) FROM usage_hourly u WHERE u.host_id = h.id AND u.hour >= ?), 0)
+				+ COALESCE((SELECT SUM(cache_write) FROM usage u WHERE u.host_id = h.id AND u.at >= ?), 0),
+			COALESCE((SELECT SUM(cost) FROM usage_hourly u WHERE u.host_id = h.id AND u.hour >= ?), 0)
+				+ COALESCE((SELECT SUM(cost) FROM usage u WHERE u.host_id = h.id AND u.at >= ?), 0),
+			COALESCE((SELECT SUM(calls) FROM usage_hourly u WHERE u.host_id = h.id AND u.hour >= ?), 0)
+				+ COALESCE((SELECT COUNT(*) FROM usage u WHERE u.host_id = h.id AND u.at >= ?), 0)
+		 FROM hosts h
+		 ORDER BY 3 + 4 DESC, h.name`,
+		since, since, since, since, since, since, since, since, since, since, since, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []HostUsage{}
+	for rows.Next() {
+		var u HostUsage
+		if err := rows.Scan(&u.HostID, &u.Host, &u.Input, &u.Output, &u.CacheRead, &u.CacheWrite, &u.Cost, &u.Calls); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// HostUsage is one host's usage total over a window, named for the
+// panel: which remote, and how much of the fleet's tokens it carried.
+type HostUsage struct {
+	HostID     int64   `json:"hostId"`
+	Host       string  `json:"host"`
+	Input      int64   `json:"input"`
+	Output     int64   `json:"output"`
+	CacheRead  int64   `json:"cacheRead"`
+	CacheWrite int64   `json:"cacheWrite"`
+	Cost       float64 `json:"cost"`
+	Calls      int64   `json:"calls"`
 }
 
 // SetVaultToken records the token this host presents to the vault proxy;

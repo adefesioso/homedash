@@ -653,6 +653,9 @@ func (f *Fleet) Heartbeat(ctx context.Context) {
 			if err := f.Store.RollupMetrics(ctx); err != nil {
 				f.Log.Error("metrics rollup", "err", err)
 			}
+			if err := f.Store.RollupUsage(ctx); err != nil {
+				f.Log.Error("usage rollup", "err", err)
+			}
 			lastRollup = time.Now()
 		}
 		select {

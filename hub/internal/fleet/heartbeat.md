@@ -20,7 +20,9 @@ is not. Each sweep records a `metrics` row and checks every mountpoint
 against `notify.disk_percent` (90), recording the crossing in either
 direction once. `RollupMetrics` averages raw rows into `metrics_hourly`
 hourly — only the hours not yet rolled — and drops raw rows
-older than two days.
+older than two days. `RollupUsage` does the same for
+[job token usage](../agent/jobs.md#tables), summed rather than
+averaged, once an hour alongside it.
 
 ## The scan
 

@@ -326,6 +326,7 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 		var ev struct {
 			Type    string `json:"type"`
 			ID      string `json:"id"`
+			Model   string `json:"model"`
 			Message *struct {
 				Role    string `json:"role"`
 				Content []struct {
@@ -333,6 +334,15 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 					Text string `json:"text"`
 				} `json:"content"`
 			} `json:"message"`
+			Usage *struct {
+				Input      int64 `json:"input"`
+				Output     int64 `json:"output"`
+				CacheRead  int64 `json:"cacheRead"`
+				CacheWrite int64 `json:"cacheWrite"`
+				Cost       struct {
+					Total float64 `json:"total"`
+				} `json:"cost"`
+			} `json:"usage"`
 		}
 		if json.Unmarshal([]byte(line), &ev) != nil {
 			continue
@@ -349,6 +359,12 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 			}
 			if len(parts) > 0 {
 				report = strings.Join(parts, "\n")
+			}
+			if ev.Usage != nil {
+				_ = j.Store.RecordUsage(ctx, h.ID, job.ID, store.Usage{
+					Model: ev.Model, Input: ev.Usage.Input, Output: ev.Usage.Output,
+					CacheRead: ev.Usage.CacheRead, CacheWrite: ev.Usage.CacheWrite, Cost: ev.Usage.Cost.Total,
+				})
 			}
 		}
 	}

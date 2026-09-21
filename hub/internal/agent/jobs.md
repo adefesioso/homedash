@@ -21,7 +21,9 @@ JSON line omp emits is a `job_events` row, written in batches (every
 quarter second or fifty lines, one transaction) so a chatty job is not
 one fsync per line; the last assistant message is
 the report; a `sudo` line is appended for every `homedash-sudo` the door
-served. The hub prepends one paragraph to every job's text: it has no
+served. An assistant `message_end` line's `usage` (input, output, cache
+read/write tokens, cost) is a `usage` row against the host and the job —
+the Usage tab's numbers. The hub prepends one paragraph to every job's text: it has no
 root, it has docker, what it can write, `homedash-sudo` is how to ask for root (a package, a
 service, a mount, a data disk to format and add to fstab — never the system disk), end with a report listing
 every change as the commands that would make it again, name data that
@@ -39,3 +41,7 @@ model, text, round count, state (`running`, `done`, `failed`,
 `needs_you`), timeout, the remote's session id, the snapshot kind
 (`btrfs`, `lvm`, `none`, or `restored`), report, reason, started/ended.
 `job_events` — one row per line, in order.
+`usage` / `usage_hourly` — one row per reply / per host-hour: input,
+output, cache read/write tokens, cost, call count. Rolled up and
+trimmed the same way as `metrics` (see
+[the heartbeat](../fleet/heartbeat.md)).

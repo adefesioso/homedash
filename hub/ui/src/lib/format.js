@@ -19,6 +19,20 @@ export function when(iso) {
   return iso ? new Date(iso).toLocaleString() : '';
 }
 
+// A token count, compacted at the thousand: 950, 12.3K, 1.2M.
+export function count(n) {
+  if (n == null) return '—';
+  if (n < 1000) return `${n}`;
+  if (n < 1e6) return `${(n / 1e3).toFixed(n < 10e3 ? 1 : 0)}K`;
+  return `${(n / 1e6).toFixed(n < 10e6 ? 1 : 0)}M`;
+}
+
+// A dollar cost, three places under a cent, two above.
+export function usd(n) {
+  if (n == null) return '—';
+  return `$${n < 0.01 && n > 0 ? n.toFixed(4) : n.toFixed(2)}`;
+}
+
 // A sparkline path for an SVG viewBox of w×h from a series of numbers.
 export function sparkPath(values, w = 80, h = 20) {
   const v = values.filter((x) => Number.isFinite(x));

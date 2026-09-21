@@ -96,6 +96,23 @@ func (s *Server) hostMetrics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, ms)
 }
 
+func (s *Server) hostUsage(w http.ResponseWriter, r *http.Request) {
+	h := s.host(w, r)
+	if h == nil {
+		return
+	}
+	hours, _ := strconv.Atoi(r.URL.Query().Get("hours"))
+	if hours <= 0 || hours > 24*30 {
+		hours = 24 * 7
+	}
+	us, err := s.Store.HostUsage(r.Context(), h.ID, hours)
+	if err != nil {
+		http.Error(w, "usage unavailable", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, us)
+}
+
 func (s *Server) setLock(w http.ResponseWriter, r *http.Request) {
 	h := s.host(w, r)
 	if h == nil {

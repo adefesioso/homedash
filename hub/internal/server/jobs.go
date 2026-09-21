@@ -21,6 +21,22 @@ func (s *Server) clearJobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]int{"cleared": n})
 }
 
+// usageTotals is the Usage tab's overview: every host's token totals
+// over the window, in one call, so the panel can compare them without
+// stitching per-host requests together.
+func (s *Server) usageTotals(w http.ResponseWriter, r *http.Request) {
+	hours, _ := strconv.Atoi(r.URL.Query().Get("hours"))
+	if hours <= 0 || hours > 24*30 {
+		hours = 24 * 7
+	}
+	us, err := s.Store.UsageTotals(r.Context(), hours)
+	if err != nil {
+		http.Error(w, "usage unavailable", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, us)
+}
+
 func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
 	var hostID int64
 	if ref := r.URL.Query().Get("host"); ref != "" {
