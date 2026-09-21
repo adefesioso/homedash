@@ -9,7 +9,7 @@ in.*
 
 Sign-in is [passkeys](accounts.md), and browsers offer WebAuthn only in a
 **secure context**: `https://` anywhere, or `http://` on `localhost` and
-nowhere else. Opened as `http://raspberrypi.local:7433` from another
+nowhere else. Opened as `http://homedash.local:7433` from another
 machine the panel shows *This browser cannot do passkeys* — the API is
 simply absent, whatever the browser or the hub is set to.
 
@@ -23,12 +23,18 @@ yourself is trusted once per device and works for years.
 the hub, once, as root:
 
 ```
-sudo ./https.sh                    # https://<hostname>.local
+sudo ./https.sh                    # https://homedash.local
 sudo ./https.sh hub.lan            # any name your network resolves
 ```
 
-It leaves three things behind:
+It leaves four things behind:
 
+- **The name `homedash.local`**, whatever the machine is called: Avahi's
+  `host-name` in `/etc/avahi/avahi-daemon.conf` is set to `homedash`, so
+  the hub answers to `homedash.local` over mDNS from every device in
+  the house (and no longer to `<hostname>.local`). A name given on the
+  command line that ends in `.local` is published the same way; any
+  other name is left to your router's DNS.
 - **Caddy**, from Debian, on `:443`, with `/etc/caddy/Caddyfile`
   serving the name over `tls internal`: Caddy makes a local CA, issues
   the certificate from it and renews it on its own. Requests are
@@ -75,8 +81,8 @@ Then open `https://<name>` and register the first passkey.
   real domain and a real certificate — point that setup's proxy at the
   panel too and set `auth.rpid`/`auth.origins` by hand instead of
   running this.
-- The name has to resolve from every device: `<hostname>.local` does
-  over mDNS (Avahi on the hub, which Debian ships; Windows needs
+- The name has to resolve from every device: `homedash.local` does
+  over mDNS (Avahi on the hub, installed by the script; Windows needs
   Bonjour), anything else needs your router's DNS.
 - Caddy's own CA is a root your devices trust; keep the hub as safe as
   you keep a hub.
