@@ -25,21 +25,25 @@ host, and the original error is what you see.
 twice — save a compose file once as a catalog entry, with the volumes it
 wants and a rough requirements line, and install it again later with one
 click; installing hands the entry to the Apps tab, which runs it through
-placement the same as a pasted file. Nothing about a catalog entry is
-privileged: what lands on the remote is a compose file indistinguishable
-from one you pasted in yourself. The catalog ships empty; every entry in
-it is one you added, and you can edit or delete any of them — an edit
-opens the entry in the same form it was saved from and saves back over
-it, under the same name.
+placement the same as a pasted file. An entry can also save the plain-text
+files its compose's bind mounts expect to exist (e.g. an `nginx.conf`),
+a default `.env` template, and setup commands to run once — all applied
+under the stack's directory before it comes up, so installing again
+reproduces the whole environment, not just the compose file. Nothing
+about a catalog entry is privileged: what lands on the remote is a
+compose file indistinguishable from one you pasted in yourself. The
+catalog ships empty; every entry in it is one you added, and you can
+edit or delete any of them — an edit opens the entry in the same form it
+was saved from and saves back over it, under the same name.
 
 The catalog is also the [hub agent](agents/README.md)'s recipe book.
 Asked to install something, it reads the catalog first and deploys the
-entry that fits, with its compose file as written, before it writes YAML
-of its own; and a stack it installed that is not in the catalog yet it
-can save there — the compose file read back from the remote, the one
-actually running, not a draft — so the next install of the same thing
-starts from what already worked. It saves the compose file only, never a
-stack's `.env`.
+entry that fits, with its compose file, setup files and setup commands
+as written, before it writes YAML of its own; and a stack it installed
+that is not in the catalog yet it can save there — the compose file read
+back from the remote, the one actually running, not a draft — so the
+next install of the same thing starts from what already worked. It
+saves the compose file only, never a stack's `.env`.
 
 **What a compose file may ask for is gated for an agent.** A job token, a
 session on the Agents tab or an outside assistant through MCP deploying a
@@ -53,6 +57,19 @@ stopped — the same request goes through, with a warning line in the
 response naming what would have been refused — because a person reading
 the compose file they just pasted in is the check; an agent acting on
 its own is not.
+
+**A catalog entry's setup commands are not softened the same way.**
+They run before anything else, in the stack's directory, and meet the
+same danger list every command run on any host meets — refused
+identically for the panel, the CLI and an agent, with no warn-through
+for a person, because a person reading a pasted compose stanza is not
+the same check as a person reading arbitrary shell. That gate is a fixed
+list of known-bad patterns, not a sandbox: a setup command can still do
+most things the account it runs as can do, so trust a catalog entry's
+setup commands the way you'd trust anything else you paste into the
+catalog. A setup command should be idempotent — a step partway through
+the list failing stops the deploy before the stack comes up, and nothing
+already run is undone.
 
 **Publish** on a stack's port makes that service reachable from outside
 the house through the peers you name — see

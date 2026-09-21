@@ -15,9 +15,17 @@ script.
 
 **The catalog** ships empty; it is only the entries you add, stored as
 JSON in the `catalog` table by name — each a compose file, the volumes it
-wants and a rough requirements line. Nothing about a catalog entry is
-privileged. The hub agent adds to it through the
-[MCP server](../mcp/README.md), from a stack it has running.
+wants, a rough requirements line, and optionally the setup files, an
+`.env` template and setup commands it needs to stand up. `Deploy` writes
+setup files and runs setup commands under the stack directory before the
+compose file and `.env`, in that order; a setup command meets the same
+gate every command on a host meets, unconditionally, not softened for a
+human the way the compose gate is. A failed setup command stops the
+deploy before anything comes up, so there's nothing to tear down — setup
+commands should be idempotent, since an earlier one may already have
+run. Nothing about a catalog entry is privileged. The hub agent adds to
+it through the [MCP server](../mcp/README.md), from a stack it has
+running.
 
 **Placement** (`Place`) is arithmetic: for each online host it scores the
 stack's needs — cores, memory, disk, GPU — against the host's cores,

@@ -66,7 +66,7 @@ func appTools(srv *sdk.Server, st *store.Store, ap *apps.Apps, gateway apps.Gate
 	})
 	addTool(srv, &sdk.Tool{
 		Name:        "deploy_stack",
-		Description: "Install or update a compose stack on a host: the compose file (and optional .env) is written under the hub account's ~/stacks/<name> and brought up. Check the catalog for an entry that fits before writing your own; run placement first unless the person named the host.",
+		Description: "Install or update a compose stack on a host: any setup files are written and setup commands run under the hub account's ~/stacks/<name>, then the compose file (and optional .env) is written and brought up. Check the catalog for an entry that fits before writing your own; run placement first unless the person named the host.",
 		Annotations: &sdk.ToolAnnotations{DestructiveHint: ptr(true)},
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in deployIn) (*sdk.CallToolResult, textOut, error) {
 		h, err := st.Host(ctx, in.Host)
@@ -76,7 +76,7 @@ func appTools(srv *sdk.Server, st *store.Store, ap *apps.Apps, gateway apps.Gate
 		// true: an MCP caller is always an agent — a window on the Agents
 		// tab or whatever assistant the person runs — never the panel or
 		// the CLI, which call apps.Deploy directly (A-1's compose gate).
-		out, _, err := ap.Deploy(ctx, h, in.Name, in.Compose, in.Env, true)
+		out, _, err := ap.Deploy(ctx, h, in.Name, in.Compose, in.Env, in.Files, in.SetupCommands, true)
 		if err != nil {
 			return nil, textOut{}, err
 		}
@@ -84,7 +84,7 @@ func appTools(srv *sdk.Server, st *store.Store, ap *apps.Apps, gateway apps.Gate
 	})
 	addTool(srv, &sdk.Tool{
 		Name:        "catalog_add",
-		Description: "Save a catalog entry, replacing one of the same name. Give compose text, or a host: then the compose file of the stack by that name installed there is read back from the remote (the one running, not a draft) and saved; a stack's .env is never saved. Title, description, needs and volumes describe it for the next install.",
+		Description: "Save a catalog entry, replacing one of the same name. Give compose text, or a host: then the compose file of the stack by that name installed there is read back from the remote (the one running, not a draft) and saved; a stack's .env is never saved. Setup files, an .env template and setup commands describe how to stand the environment up before it comes up. Title, description, needs and volumes describe it for the next install.",
 		Annotations: &sdk.ToolAnnotations{DestructiveHint: ptr(true)},
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in catalogAddIn) (*sdk.CallToolResult, textOut, error) {
 		compose := in.Compose
@@ -108,7 +108,7 @@ func appTools(srv *sdk.Server, st *store.Store, ap *apps.Apps, gateway apps.Gate
 				return nil, textOut{}, errors.New("no managed stack " + stack + " on " + in.Host + ": only a stack under ~/stacks can be saved")
 			}
 		}
-		e := apps.Entry{Name: in.Name, Title: in.Title, Description: in.Description, Needs: in.Needs, Volumes: in.Volumes, Compose: compose}
+		e := apps.Entry{Name: in.Name, Title: in.Title, Description: in.Description, Needs: in.Needs, Volumes: in.Volumes, Compose: compose, Files: in.Files, EnvTemplate: in.EnvTemplate, SetupCommands: in.SetupCommands}
 		if e.Volumes == nil {
 			e.Volumes = []string{}
 		}
@@ -140,20 +140,25 @@ type appIn struct {
 	Lines int    `json:"lines,omitempty" jsonschema:"default 200"`
 }
 type deployIn struct {
-	Host    string `json:"host"`
-	Name    string `json:"name" jsonschema:"lowercase letters, digits, - and _"`
-	Compose string `json:"compose" jsonschema:"the compose file text"`
-	Env     string `json:"env,omitempty" jsonschema:"an optional .env file"`
+	Host          string           `json:"host"`
+	Name          string           `json:"name" jsonschema:"lowercase letters, digits, - and _"`
+	Compose       string           `json:"compose" jsonschema:"the compose file text"`
+	Env           string           `json:"env,omitempty" jsonschema:"an optional .env file"`
+	Files         []apps.SetupFile `json:"files,omitempty" jsonschema:"plain-text files the compose's bind mounts expect, written under the stack directory before it comes up"`
+	SetupCommands []string         `json:"setupCommands,omitempty" jsonschema:"shell commands run in the stack directory before docker compose up, e.g. mkdir -p data; meet the same gate every command on a host meets"`
 }
 type catalogAddIn struct {
-	Name        string     `json:"name" jsonschema:"the entry name: lowercase letters, digits, - and _"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty" jsonschema:"one sentence: what it is for"`
-	Needs       apps.Needs `json:"needs,omitempty" jsonschema:"a rough requirements line: cores, memoryMB, diskGB, gpu, cluster"`
-	Volumes     []string   `json:"volumes,omitempty" jsonschema:"the volumes the stack wants"`
-	Compose     string     `json:"compose,omitempty" jsonschema:"the compose file text; leave empty to read it from an installed stack"`
-	Host        string     `json:"host,omitempty" jsonschema:"read the compose file from the stack installed on this host instead of giving it"`
-	Stack       string     `json:"stack,omitempty" jsonschema:"with host: the installed stack's name, if it differs from the entry name"`
+	Name          string           `json:"name" jsonschema:"the entry name: lowercase letters, digits, - and _"`
+	Title         string           `json:"title,omitempty"`
+	Description   string           `json:"description,omitempty" jsonschema:"one sentence: what it is for"`
+	Needs         apps.Needs       `json:"needs,omitempty" jsonschema:"a rough requirements line: cores, memoryMB, diskGB, gpu, cluster"`
+	Volumes       []string         `json:"volumes,omitempty" jsonschema:"the volumes the stack wants"`
+	Compose       string           `json:"compose,omitempty" jsonschema:"the compose file text; leave empty to read it from an installed stack"`
+	Host          string           `json:"host,omitempty" jsonschema:"read the compose file from the stack installed on this host instead of giving it"`
+	Stack         string           `json:"stack,omitempty" jsonschema:"with host: the installed stack's name, if it differs from the entry name"`
+	Files         []apps.SetupFile `json:"files,omitempty" jsonschema:"plain-text files the compose's bind mounts expect, written under the stack directory before it comes up"`
+	EnvTemplate   string           `json:"envTemplate,omitempty" jsonschema:"a default .env carried into the install dialog instead of starting blank"`
+	SetupCommands []string         `json:"setupCommands,omitempty" jsonschema:"shell commands run in the stack directory before docker compose up"`
 }
 type actionIn struct {
 	Host    string `json:"host"`

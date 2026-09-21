@@ -76,6 +76,8 @@ func (s *Server) deployApp(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Name, Compose, Env string
+		Files              []apps.SetupFile `json:"files"`
+		SetupCommands      []string         `json:"setupCommands"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&in); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -83,7 +85,7 @@ func (s *Server) deployApp(w http.ResponseWriter, r *http.Request) {
 	}
 	// false: this is the panel/CLI door, never an agent's (A-1's compose
 	// gate only refuses the MCP door, mcp/apps.go's deploy_stack).
-	out, warning, err := s.Apps.Deploy(r.Context(), h, in.Name, in.Compose, in.Env, false)
+	out, warning, err := s.Apps.Deploy(r.Context(), h, in.Name, in.Compose, in.Env, in.Files, in.SetupCommands, false)
 	if err != nil {
 		if isOffline(err) {
 			http.Error(w, err.Error(), http.StatusConflict)

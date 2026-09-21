@@ -46,7 +46,7 @@
   $effect(() => { if (installEntry) { fromCatalog(installEntry); onconsumed?.(); } });
 
   async function fromCatalog(e) {
-    install = { name: e.name, compose: e.compose, env: '', needs: e.needs, host: '', verdicts: null };
+    install = { name: e.name, compose: e.compose, env: e.envTemplate ?? '', files: e.files ?? [], setupCommands: e.setupCommands ?? [], needs: e.needs, host: '', verdicts: null };
     await place();
   }
   async function place() {
@@ -56,7 +56,7 @@
   async function deploy() {
     busy = true;
     try {
-      const r = await post(`/hosts/${install.host}/apps`, { name: install.name, compose: install.compose, env: install.env });
+      const r = await post(`/hosts/${install.host}/apps`, { name: install.name, compose: install.compose, env: install.env, files: install.files ?? [], setupCommands: install.setupCommands ?? [] });
       warning = r?.warning || '';
       install = null; error = '';
       await load();
@@ -90,7 +90,7 @@
 </script>
 
 <div class="bar">
-  <button class="primary" onclick={() => (install = { name: '', compose: '', env: '', needs: { cores: 1, memoryMB: 256, diskGB: 1, gpu: false }, host: '', verdicts: null })}><Icon name="plus" size={14} /> Install a stack</button>
+  <button class="primary" onclick={() => (install = { name: '', compose: '', env: '', files: [], setupCommands: [], needs: { cores: 1, memoryMB: 256, diskGB: 1, gpu: false }, host: '', verdicts: null })}><Icon name="plus" size={14} /> Install a stack</button>
   <button class="quiet" onclick={load} disabled={loading}>{loading ? 'Asking every remote…' : 'Refresh'}</button>
   {#if loadError}<Notice>{loadError}</Notice>{/if}
   {#if error}<Notice ondismiss={() => (error = '')}>{error}</Notice>{/if}
@@ -110,6 +110,13 @@
     </div>
     <label>compose.yml <textarea rows="10" bind:value={install.compose} spellcheck="false"></textarea></label>
     <label>.env (optional) <textarea rows="2" bind:value={install.env} spellcheck="false"></textarea></label>
+    {#if install.files?.length || install.setupCommands?.length}
+      <details class="setup-summary">
+        <summary class="muted small">From the catalog: {install.files?.length ?? 0} setup file{install.files?.length === 1 ? '' : 's'}, {install.setupCommands?.length ?? 0} setup command{install.setupCommands?.length === 1 ? '' : 's'}</summary>
+        {#each install.files ?? [] as f}<p class="mono small">{f.path}</p>{/each}
+        {#each install.setupCommands ?? [] as c}<p class="mono small">{c}</p>{/each}
+      </details>
+    {/if}
     <h4>Where</h4>
     {#if install.verdicts}
       <div class="verdicts">
@@ -129,7 +136,7 @@
 {/if}
 
 {#if !loadError && stacks.length === 0 && !loading}
-  <Empty text="No stacks on any remote. Pick one from the Catalog tab, or paste a compose file." action="Install a stack" onaction={() => (install = { name: '', compose: '', env: '', needs: { cores: 1, memoryMB: 256, diskGB: 1, gpu: false }, host: '', verdicts: null })} />
+  <Empty text="No stacks on any remote. Pick one from the Catalog tab, or paste a compose file." action="Install a stack" onaction={() => (install = { name: '', compose: '', env: '', files: [], setupCommands: [], needs: { cores: 1, memoryMB: 256, diskGB: 1, gpu: false }, host: '', verdicts: null })} />
 {:else if !loadError || loading}
   <div class="scroll">
   <table class="stack">
@@ -179,4 +186,6 @@
   .verdict { display: flex; align-items: center; gap: 0.4rem; color: var(--fg); }
   .verdict.no { color: var(--muted); }
   pre { max-height: 16rem; }
+  .setup-summary { font-size: 0.9em; }
+  .setup-summary summary { cursor: pointer; }
 </style>

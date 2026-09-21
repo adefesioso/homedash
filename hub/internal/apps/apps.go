@@ -40,6 +40,39 @@ type Entry struct {
 	Needs       Needs    `json:"needs"`
 	Volumes     []string `json:"volumes"`
 	Compose     string   `json:"compose"`
+	// Files are plain-text files the compose's bind mounts expect to
+	// exist, written under the stack directory before it comes up.
+	Files []SetupFile `json:"files,omitempty"`
+	// EnvTemplate is a default .env carried into the install dialog
+	// instead of starting blank.
+	EnvTemplate string `json:"envTemplate,omitempty"`
+	// SetupCommands run once, in the stack directory, before the stack
+	// comes up (e.g. "mkdir -p data"). They meet the same gate every
+	// command on a host meets (Fleet.Run) — not a sandbox, and not
+	// softened for a human the way ComposeRefusal is.
+	SetupCommands []string `json:"setupCommands,omitempty"`
+}
+
+// SetupFile is one plain-text file a catalog entry expects to exist —
+// an nginx.conf a bind mount points at, e.g. Path is relative to the
+// stack's directory.
+type SetupFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// safeRelPath rejects an absolute path or one that climbs out of the
+// stack directory with a ".." segment.
+func safeRelPath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") {
+		return false
+	}
+	for _, seg := range strings.Split(p, "/") {
+		if seg == "" || seg == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // ErrCatalogNotFound is DeleteCatalogEntry's answer to a name that was
@@ -88,6 +121,11 @@ func (a *Apps) AddCatalogEntry(ctx context.Context, e Entry) error {
 	}
 	if strings.TrimSpace(e.Compose) == "" {
 		return errors.New("an entry needs a compose file")
+	}
+	for _, f := range e.Files {
+		if !safeRelPath(f.Path) {
+			return fmt.Errorf("setup file path %q escapes the stack directory", f.Path)
+		}
 	}
 	b, _ := json.Marshal(e)
 	return a.Store.SetCatalogEntry(ctx, e.Name, string(b))
@@ -227,12 +265,32 @@ func (a *Apps) listOn(ctx context.Context, h *store.Host) ([]Stack, error) {
 
 func stackDir(name string) string { return "stacks/" + name }
 
+// shellDir is the directory part of a setup file's relative path, "."
+// when it has none.
+func shellDir(path string) string {
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[:i]
+	}
+	return "."
+}
+
 // Deploy writes the compose file (and an .env if given) under ~/stacks
 // and brings the stack up; deploying a name already running on the host
 // replaces it, the same as Update. agentCaller is true for a job token,
 // a window or an outside assistant through MCP — never for the panel or
 // the CLI — and is what decides the compose gate below.
-func (a *Apps) Deploy(ctx context.Context, h *store.Host, name, compose, env string, agentCaller bool) (out, warning string, err error) {
+//
+// files and setupCommands come from a catalog entry: files are written
+// under the stack directory, and setupCommands run there, both before
+// the compose file lands and the stack comes up. A setup command meets
+// the same gate every command on a host meets (Fleet.Run), regardless
+// of agentCaller — unlike the compose gate, this isn't softened for a
+// human, since a pasted compose stanza is something a person reading it
+// can catch and arbitrary shell is not. A failed setup step stops the
+// deploy before anything is brought up, so there is nothing to tear
+// down; setup commands are expected to be idempotent, since an earlier
+// one in the list may already have run.
+func (a *Apps) Deploy(ctx context.Context, h *store.Host, name, compose, env string, files []SetupFile, setupCommands []string, agentCaller bool) (out, warning string, err error) {
 	if h.Status != "online" {
 		return "", "", &Offline{Host: h.Name}
 	}
@@ -241,6 +299,32 @@ func (a *Apps) Deploy(ctx context.Context, h *store.Host, name, compose, env str
 	}
 	if strings.TrimSpace(compose) == "" {
 		return "", "", errors.New("a stack needs a compose file")
+	}
+	for _, f := range files {
+		if !safeRelPath(f.Path) {
+			return "", "", fmt.Errorf("setup file path %q escapes the stack directory", f.Path)
+		}
+	}
+	if len(files) > 0 || len(setupCommands) > 0 {
+		if _, err := a.Fleet.Run(ctx, h, "mkdir -p "+stackDir(name), 30*time.Second, false); err != nil {
+			return "", "", err
+		}
+	}
+	for _, f := range files {
+		if err := a.Fleet.WriteFile(ctx, h, stackDir(name)+"/"+f.Path, []byte(f.Content), "0644", false); err != nil {
+			return "", "", err
+		}
+	}
+	for _, cmd := range setupCommands {
+		full := "cd " + stackDir(name) + " && " + cmd
+		r, err := a.Fleet.Run(ctx, h, full, 5*time.Minute, false)
+		if err != nil {
+			out := ""
+			if r != nil {
+				out = string(r.Stdout) + string(r.Stderr)
+			}
+			return out, "", fmt.Errorf("setup command failed: %s: %w", cmd, err)
+		}
 	}
 	// The compose gate (A-1): the same danger list Privileged refuses a
 	// docker command line for, read from the compose file's content. An
@@ -267,11 +351,20 @@ func (a *Apps) Deploy(ctx context.Context, h *store.Host, name, compose, env str
 		_, _ = a.compose(ctx, h, name, "down --remove-orphans", 2*time.Minute)
 		return out, warning, err
 	}
-	script := "# HomeDash: stack " + name + " (deployed from the panel)\nmkdir -p /home/homedash/stacks/" + name + "\ncat > /home/homedash/stacks/" + name + "/compose.yml <<'HOMEDASH_COMPOSE'\n" + strings.TrimRight(compose, "\n") + "\nHOMEDASH_COMPOSE\n"
-	if env != "" {
-		script += "cat > /home/homedash/stacks/" + name + "/.env <<'HOMEDASH_ENV'\n" + strings.TrimRight(env, "\n") + "\nHOMEDASH_ENV\nchmod 600 /home/homedash/stacks/" + name + "/.env\n"
+	dir := "/home/homedash/stacks/" + name
+	script := "# HomeDash: stack " + name + " (deployed from the panel)\nmkdir -p " + dir + "\n"
+	for i, f := range files {
+		marker := fmt.Sprintf("HOMEDASH_FILE_%d", i)
+		script += "mkdir -p " + dir + "/" + shellDir(f.Path) + "\ncat > " + dir + "/" + f.Path + " <<'" + marker + "'\n" + strings.TrimRight(f.Content, "\n") + "\n" + marker + "\n"
 	}
-	script += "chown -R homedash:homedash /home/homedash/stacks/" + name + "\nsudo -u homedash docker compose -f /home/homedash/stacks/" + name + "/compose.yml -p " + name + " up -d"
+	for _, cmd := range setupCommands {
+		script += "(cd " + dir + " && " + cmd + ")\n"
+	}
+	script += "cat > " + dir + "/compose.yml <<'HOMEDASH_COMPOSE'\n" + strings.TrimRight(compose, "\n") + "\nHOMEDASH_COMPOSE\n"
+	if env != "" {
+		script += "cat > " + dir + "/.env <<'HOMEDASH_ENV'\n" + strings.TrimRight(env, "\n") + "\nHOMEDASH_ENV\nchmod 600 " + dir + "/.env\n"
+	}
+	script += "chown -R homedash:homedash " + dir + "\nsudo -u homedash docker compose -f " + dir + "/compose.yml -p " + name + " up -d"
 	_ = a.Store.AppendRebuildScript(ctx, h.ID, script)
 	a.Notify("app.deployed", h.Name, name+" deployed on "+h.Name)
 	return out, warning, nil
