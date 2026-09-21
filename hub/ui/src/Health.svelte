@@ -72,7 +72,6 @@
         </li>
       {/each}
     </ul>
-    <footer class="muted small">What the hub reports about itself, read every 15 seconds. The fix for a line lives where the thing does — Settings, Hosts, Tasks, Peers.</footer>
   </section>
 {:else if !error}
   <p class="muted">…</p>

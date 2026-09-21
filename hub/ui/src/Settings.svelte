@@ -198,8 +198,8 @@
       <dt>Running since</dt><dd>{new Date(hub.started).toLocaleString()}</dd>
       <dt>State file</dt><dd><code>{hub.statePath}</code></dd>
       <dt>Public key</dt><dd><code class="key">{hub.publicKey}</code></dd>
-      <dt>Ollama endpoint</dt><dd><code>{location.origin}</code> <span class="muted">— the pool, one address; existing clients work unchanged</span></dd>
-      <dt>Command line</dt><dd><code>homedash login {location.origin}</code> <span class="muted">— on your workstation; signs in with your passkey through this browser</span></dd>
+      <dt>Ollama endpoint</dt><dd><code>{location.origin}</code></dd>
+      <dt>Command line</dt><dd><code>homedash login {location.origin}</code></dd>
     </dl>
   {/if}
 </section>
@@ -212,7 +212,7 @@
       <dt>Credential vault</dt><dd>{agent.vaultRunning ? 'running' : 'not running'}</dd>
     </dl>
     <div class="row">
-      <button onclick={updateOmp} disabled={ompBusy}>Update omp globally</button> {#if ompBusy}<span class="muted">starting…</span>{/if}
+      <button onclick={updateOmp} disabled={ompBusy}>Update omp on network</button> {#if ompBusy}<span class="muted">starting…</span>{/if}
       <button onclick={refreshModels} disabled={modelsBusy}>Refresh model cache</button> {#if modelsBusy}<span class="muted">refreshing…</span>{/if}
     </div>
   {/if}
@@ -229,7 +229,7 @@
     <label>Rounds before a job needs you <input type="number" min="1" max="10" placeholder="3" bind:value={s['agent.rounds']} /></label>
     <label>Per-job time, seconds <input type="number" min="60" placeholder="1200" bind:value={s['jobs.timeout']} /></label>
     <label>Jobs kept per host <input type="number" min="5" placeholder="20" bind:value={s['jobs.retention']} /></label>
-    <label class="check"><input type="checkbox" checked={s['jobs.sudo'] !== 'off'} onchange={(e) => (s['jobs.sudo'] = e.target.checked ? '' : 'off')} /> Jobs may ask for root through homedash-sudo (one checked, logged command at a time; off means a job has no route to root)</label>
+    <label class="check"><input type="checkbox" checked={s['jobs.sudo'] !== 'off'} onchange={(e) => (s['jobs.sudo'] = e.target.checked ? '' : 'off')} /> Jobs may ask for root through homedash-sudo</label>
     <label>Per-job memory cap, e.g. 2G (blank for none) <input placeholder="none" bind:value={s['jobs.memory_max']} /></label>
     <label>Per-job CPU quota, e.g. 200% (blank for none) <input placeholder="none" bind:value={s['jobs.cpu_quota']} /></label>
     <label>Mountpoint fullness threshold, % <input type="number" min="50" max="99" placeholder="90" bind:value={s['notify.disk_percent']} /></label>
@@ -244,7 +244,6 @@
 
 <section id="s-space" class="card">
   <h2>Space</h2>
-  <p class="help">A shared name is the rendezvous: every hub that typed the same one finds the others over a DHT, with no server in the middle. The name is a password — on the public DHT anyone who guesses it finds the space — so make it one. Work leaves the house one way, and it is not a default.</p>
   <form class="form" onsubmit={(e) => { e.preventDefault(); save(); }}>
     <label>Space name <input placeholder="e.g. elm-street-labs-7f3k9q" bind:value={s['space.name']} /></label>
     <label class="check"><input type="checkbox" checked={on(s['space.enabled'])} onchange={(e) => (s['space.enabled'] = e.target.checked ? 'true' : '')} /> Joined (on)</label>
@@ -254,9 +253,9 @@
       <label>Network key (optional) <input placeholder="64 hex characters, the same on every hub; blank is none" bind:value={s['space.psk']} spellcheck="false" /> <button type="button" class="small" onclick={() => (s['space.psk'] = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, '0')).join(''))}>generate</button></label>
       <p class="help">A keyed network runs on TCP only, and needs the key pasted into every member before it can see them.</p>
     {/if}
-    <label class="check"><input type="checkbox" checked={on(s['space.reachable'])} onchange={(e) => (s['space.reachable'] = e.target.checked ? 'true' : '')} /> This hub is reachable from the internet (a public address, or the listen port forwarded) — on a private network it serves the DHT and relays for the rest</label>
+    <label class="check"><input type="checkbox" checked={on(s['space.reachable'])} onchange={(e) => (s['space.reachable'] = e.target.checked ? 'true' : '')} /> This hub is reachable from the internet</label>
     <label>Listen port <input type="number" min="0" max="65535" placeholder="picked at random if blank" bind:value={s['space.port']} /></label>
-    <label class="check"><input type="checkbox" checked={on(s['space.serve'])} onchange={(e) => (s['space.serve'] = e.target.checked ? 'true' : '')} /> Run peers' jobs on my machines (off by default)</label>
+    <label class="check"><input type="checkbox" checked={on(s['space.serve'])} onchange={(e) => (s['space.serve'] = e.target.checked ? 'true' : '')} /> Run peers' jobs on my machines</label>
     <label>This hub's name to peers <input placeholder="hostname if blank" bind:value={s['space.hub_name']} /></label>
     <label>Unknown peers <select bind:value={s['space.unknown']}><option value="">refuse until approved</option><option value="accept">accept under the default quota</option></select></label>
     <label>Default max concurrent per peer <input type="number" min="0" placeholder="1" bind:value={s['space.default_concurrent']} /></label>
@@ -272,9 +271,6 @@
 
 <section id="s-accounts" class="card">
   <h2>Accounts</h2>
-  {#if user && user.passkeys < 2}
-    <Notice>You have one passkey. One passkey on one phone is a lockout waiting to happen — <button class="link" onclick={addPasskey}>add a second passkey</button> on another device (or make an invite for yourself below and open it there).</Notice>
-  {/if}
   <div class="scroll">
   <table>
     <tbody>
@@ -322,7 +318,6 @@
 
 <section id="s-backup" class="card">
   <h2>Backup</h2>
-  <p class="help">The whole state directory — hosts and their keys, clusters, tasks, secrets, accounts, the vault — as one file, encrypted under a passphrase before it leaves, downloaded by your browser. Keep it wherever you keep things. Restoring it puts all of that back and restarts the hub; a fresh hub takes it on its setup page.</p>
   {#if backup}
     <dl>
       <dt>Last export</dt><dd>{backup.last ? new Date(backup.last).toLocaleString() : 'never'}</dd>
@@ -337,7 +332,6 @@
 
 <section id="s-secrets" class="card">
   <h2>Secrets</h2>
-  <p class="help">Named values kept encrypted on the hub. A job's remote reads one with <code>homedash-secret NAME</code> while the job runs; values are never shown again here.</p>
   {#if secrets.length > 0}
     <div class="scroll">
     <table>

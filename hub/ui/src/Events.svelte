@@ -64,6 +64,6 @@
 <style>
   table { table-layout: fixed; }
   .when { color: var(--muted); white-space: nowrap; font-family: var(--mono); font-size: 0.82em; width: 11rem; }
-  .pill { font-family: var(--mono); }
+  .pill { font-family: var(--mono); margin-left: 0.5rem; }
   .message { max-width: 30rem; overflow-wrap: break-word; }
 </style>
