@@ -143,9 +143,10 @@
       <div class="brand">
         <span class="mark"><Icon name="mark" size={18} /></span>
         <span class="wordmark">HomeDash</span>
+        <button class="link signout" onclick={signOut}>sign out</button>
       </div>
       <h1>{#if hub}<span class="hubname">{hub.name}</span>{/if}</h1>
-      <span class="who">{auth.user.name} · {auth.user.role} <button class="link" onclick={signOut}>sign out</button></span>
+      <span class="who">{auth.user.name} · {auth.user.role}</span>
     </header>
     <nav aria-label="Sections">
       {#each groups as g}
@@ -211,11 +212,12 @@
     padding: 1rem 0.75rem; border-right: 1px solid var(--line); background: var(--card);
   }
   aside header { display: grid; gap: 0.15rem; padding: 0.25rem 0.5rem 0.75rem; }
+  .brand { display: flex; align-items: center; gap: 0.4rem; }
   .wordmark { font-weight: 650; letter-spacing: -0.02em; font-size: 1rem; }
+  .signout { margin-left: auto; font-size: 0.78em; }
   h1 { margin: 0.35rem 0 0; font-size: 1.05rem; font-family: var(--mono); font-weight: 500; letter-spacing: 0; min-height: 1.3em; }
   .hubname { color: var(--fg); word-break: keep-all; }
   .who { color: var(--muted); font-size: 0.8em; }
-  .who .link { font-size: 1em; }
   nav { display: flex; flex-direction: column; gap: 0.75rem; flex: 1; }
   .group { display: grid; gap: 1px; }
   .groupname { font-size: 0.7em; font-weight: 600; color: var(--muted); padding: 0 0.6rem 0.3rem; letter-spacing: 0.02em; }
