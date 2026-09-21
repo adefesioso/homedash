@@ -350,7 +350,7 @@
   .gauges :global(.stat .k) { line-height: 1.25; overflow-wrap: anywhere; }
   .none { padding: 0.7rem 1rem 0.3rem; margin: 0; }
   /* The GPU chip: on its own line, not squeezed among the other chips. */
-  .gpu-row { padding: 0.3rem 1rem 0; }
+  .gpu-row { padding: 0.35rem 1rem; }
   .gpu-row .led { width: 0.4rem; height: 0.4rem; }
   .spark { width: 48px; height: 14px; flex: none; }
   .spark path { fill: none; stroke: var(--muted); stroke-width: 1.5; }

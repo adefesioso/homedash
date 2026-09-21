@@ -105,7 +105,7 @@
 <style>
   .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); gap: 0.75rem; }
   .entry { margin: 0; display: grid; gap: 0.35rem; align-content: start; }
-  .entry p { margin: 0; }
+  .entry p { margin: 0; overflow-wrap: anywhere; }
   .entry > .row:last-child { margin-top: auto; padding-top: 0.3rem; }
   .needs { font-family: var(--mono); font-size: 0.78em; color: var(--muted); }
   button.add { display: flex; align-items: center; justify-content: center; gap: 0.5rem; border: 1px dashed var(--line); background: none; box-shadow: none; color: var(--muted); min-height: 6rem; border-radius: var(--r-lg); }

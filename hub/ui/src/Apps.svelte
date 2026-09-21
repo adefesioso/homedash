@@ -188,4 +188,13 @@
   pre { max-height: 16rem; }
   .setup-summary { font-size: 0.9em; }
   .setup-summary summary { cursor: pointer; }
+
+  /* The name was losing its width to the actions column's eight buttons
+     forcing themselves onto one line; letting actions wrap onto more
+     than one line gives that room back to the name. */
+  table.stack td:first-child { min-width: 16rem; overflow-wrap: anywhere; }
+  table.stack td.mono { white-space: nowrap; }
+  table.stack td.actions { white-space: normal; }
+  table.stack td.actions button + button { margin-left: 0; }
+  table.stack td.actions button { margin: 0.15rem 0 0 0.4rem; }
 </style>
