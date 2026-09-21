@@ -1,0 +1,42 @@
+name: homedash
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: net
+priority: optional
+maintainer: Felipe Chang <felipechang@canica.pe>
+description: |
+  HomeDash pools the machines in your house into one control panel and
+  shares their inference with other HomeDash users over a peer network.
+  Installs the hub as a system service and a desktop entry that opens it.
+homepage: https://github.com/adefesioso/homedash
+license: MIT
+depends:
+  - adduser
+recommends:
+  - openssh-client
+suggests:
+  - chromium
+  - firefox
+contents:
+  - src: dist/homedash-linux-${ARCH}
+    dst: /usr/bin/homedash
+    expand: true
+    file_info:
+      mode: 0755
+  - src: packaging/homedash.service
+    dst: /lib/systemd/system/homedash.service
+    file_info:
+      mode: 0644
+  - src: packaging/homedash.desktop
+    dst: /usr/share/applications/homedash.desktop
+    file_info:
+      mode: 0644
+  - src: packaging/homedash.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/homedash.svg
+    file_info:
+      mode: 0644
+scripts:
+  postinstall: packaging/postinst.sh
+  preremove: packaging/prerm.sh
+  postremove: packaging/postrm.sh

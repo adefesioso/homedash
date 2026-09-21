@@ -1,0 +1,29 @@
+[Unit]
+Description=HomeDash hub
+Documentation=https://github.com/adefesioso/homedash
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=homedash
+Group=homedash
+ExecStart=/usr/bin/homedash serve
+Restart=on-failure
+RestartSec=3
+Environment=HOMEDASH_STATE=/var/lib/homedash
+StateDirectory=homedash
+StateDirectoryMode=0700
+# The hub keeps one key and one file; it needs nothing else on the box.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/homedash
+# An ingress front binds :443 and :80 for a peer's published service;
+# nothing else on the box asks for a privileged port.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=HomeDash
+Comment=Pool the machines in your house
+Exec=homedash open
+Icon=homedash
+Terminal=false
+Categories=System;
+Keywords=homelab;ssh;docker;ollama;
