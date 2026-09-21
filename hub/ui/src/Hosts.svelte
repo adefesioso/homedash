@@ -9,7 +9,6 @@
   import ModelPick from './ModelPick.svelte';
   import Notice from './ui/Notice.svelte';
   import Stat from './ui/Stat.svelte';
-  import Fill from './ui/Fill.svelte';
   import { splitModel, joinModel, halfPicked, badModel } from './lib/model.js';
 
   // The Hosts tab: one card per enrolled machine, showing what it last
@@ -131,6 +130,7 @@
     note = { ...note, [h.id]: '' };
   }
   const memPct = (f) => (f.memTotal ? Math.round((100 * f.memUsed) / f.memTotal) : 0);
+  const loadPct = (f) => (f.cores ? Math.round((100 * f.load1) / f.cores) : 0);
   const status = (h) => ({ online: 'Online', offline: 'Offline', mismatch: 'Key mismatch', unknown: 'Unknown' }[h.status] ?? h.status);
 </script>
 
@@ -178,52 +178,45 @@
           <span class="muted small">{ago(h.lastSeen)}</span>
         </header>
         {#if f.cores}
-          <Stat label="memory" of={bytes(f.memTotal)} pct={memPct(f)} hot={memPct(f) > 85} min="11rem">{bytes(f.memUsed)}</Stat>
-          <div class="stats">
-            <Stat label="cores">{f.cores}</Stat>
-            <Stat label="load">{f.load1}</Stat>
-            {#if f.docker}<Stat label="docker">{f.docker}</Stat>{/if}
-            {#if f.gpu}<Stat label={f.gpu.busy ? 'gpu busy' : 'gpu idle'}><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span> {f.gpu.name || 'GPU'}</Stat>{/if}
-          </div>
-          <div class="mounts">
+          <div class="gauges">
+            <Stat label="memory of {bytes(f.memTotal)}" pct={memPct(f)} hot={memPct(f) > 85}>{bytes(f.memUsed)}</Stat>
+            <Stat label="load on {f.cores} cores" pct={loadPct(f)} hot={loadPct(f) > 100}>{f.load1}</Stat>
             {#each f.mounts ?? [] as m}
               {@const pct = m.size ? Math.round((100 * (m.size - m.free)) / m.size) : 0}
-              <div class="mount">
-                <code>{m.path}</code>
-                <span class="muted small">{bytes(m.free)} free of {bytes(m.size)}</span>
-                {#if m.path === '/' && rootFree(h).length > 1}
-                  <svg viewBox="0 0 80 20" class="spark" preserveAspectRatio="none"><path d={sparkPath(rootFree(h))} /></svg>
-                {:else}<span></span>{/if}
-                <Fill {pct} hot={pct > 85} />
-              </div>
+              <Stat label="{m.path} free of {bytes(m.size)}" {pct} hot={pct > 85}>
+                {bytes(m.free)}
+                {#if m.path === '/' && rootFree(h).length > 1}<svg viewBox="0 0 80 20" class="spark" preserveAspectRatio="none"><title>root free, 48h</title><path d={sparkPath(rootFree(h))} /></svg>{/if}
+              </Stat>
             {/each}
           </div>
         {:else}
-          <p class="muted">Nothing reported yet.</p>
+          <p class="muted none">Nothing reported yet.</p>
         {/if}
-        <div class="switches">
+        <div class="chips">
+          {#if f.gpu}<span class="pill {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>{/if}
+          {#if f.docker}<span class="pill">docker <b>{f.docker}</b></span>{/if}
+          {#if f.agent}
+            <span class="pill">omp <b>{f.agent.version}</b></span>
+            <button class="small" disabled={busy[h.id] || h.status !== 'online'} aria-expanded={modelEdit?.id === h.id} title="Change the model this machine's agent runs" onclick={() => (modelEdit = modelEdit?.id === h.id ? null : { id: h.id, pick: splitModel(f.agent.model), err: '' })}>{f.agent.model || 'fleet default'}</button>
+            {#if h.credentialsRevokedAt}<span class="pill bad">credentials revoked</span>
+            {:else if f.agent.snapshotAge == null}<span class="pill">no credentials yet</span>
+            {:else}<span class="pill ok">credentials {Math.round(f.agent.snapshotAge / 60)}m old</span>{/if}
+            {#if f.memTotal && f.memTotal < 1400 * 1048576}<span class="pill bad">too little memory for the agent</span>{/if}
+            {#if !f.agent.account}<span class="pill bad">no agent account: re-provision</span>{:else if !f.agent.cage}<span class="pill bad">network cage down</span>{/if}
+          {:else}
+            <span class="pill">no agent reported</span>
+          {/if}
+          <span class="grow"></span>
           <label class="check" title={f.lock ? '' : 'The machine has not reported its SSH config yet'}>
             <input type="checkbox" checked={f.lock?.locked ?? false} disabled={h.status !== 'online' || busy[h.id]}
               onchange={(e) => act(h, () => post(`/hosts/${h.id}/lock`, { locked: e.target.checked }))} />
-            Locked to the hub
+            Locked
           </label>
           <label class="check">
             <input type="checkbox" checked={f.ollama?.installed ?? false} disabled={h.status !== 'online' || busy[h.id]}
               onchange={(e) => toggleOllama(h, e.target.checked)} />
-            Ollama {#if ollamaBusy[h.id]}<span class="muted">{ollamaBusy[h.id]}…</span>{:else if f.ollama?.installed}<span class="muted">{f.ollama.running ? 'running' : 'installed, not running'}</span>{/if}
+            Ollama{#if ollamaBusy[h.id]} <span class="muted">{ollamaBusy[h.id]}…</span>{:else if f.ollama?.installed && !f.ollama.running} <span class="warn">not running</span>{/if}
           </label>
-        </div>
-        <div class="agent">
-          {#if f.agent}
-            <span>Agent <span class="muted">omp {f.agent.version}</span></span>
-            <span class="muted">{f.agent.model || 'fleet default'}</span>
-            <button class="small" disabled={busy[h.id] || h.status !== 'online'} aria-expanded={modelEdit?.id === h.id} onclick={() => (modelEdit = modelEdit?.id === h.id ? null : { id: h.id, pick: splitModel(f.agent.model), err: '' })}>Change</button>
-            <span class="muted">{h.credentialsRevokedAt ? 'credentials revoked' : f.agent.snapshotAge == null ? 'no credentials yet' : `credentials ${Math.round(f.agent.snapshotAge / 60)}m old`}</span>
-            {#if f.memTotal && f.memTotal < 1400 * 1048576}<span class="warn">too little memory for the agent to run</span>{/if}
-            {#if !f.agent.account}<span class="warn">no agent account: re-provision to run jobs</span>{:else if !f.agent.cage}<span class="warn">the agent's network cage is not up</span>{/if}
-          {:else}
-            <span class="muted">No agent reported.</span>
-          {/if}
         </div>
         {#if modelEdit?.id === h.id}
           <form class="form model-edit" use:useEscape={() => (modelEdit = null)} onsubmit={(e) => { e.preventDefault(); saveModel(h); }}>
@@ -237,13 +230,13 @@
         {/if}
         {#if note[h.id]}<p class="muted small">{note[h.id]}</p>{/if}
         <footer>
-          <button disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, () => post(`/hosts/${h.id}/credentials`))}>Update credentials</button>
-          <button disabled={busy[h.id]} onclick={() => confirm(`Revoke ${h.name}'s vault access? Its jobs run on the encrypted snapshot only until you update credentials again.`) && act(h, () => post(`/hosts/${h.id}/credentials/revoke`))}>Revoke</button>
-          <button disabled={busy[h.id] || h.status !== 'online'} onclick={() => reprovision(h)}>Re-provision</button>
-          <button disabled={h.status !== 'online'} onclick={() => (publish = publish === h.id ? null : h.id)}>Publish a port</button>
-          <button class="quiet" onclick={() => { open = open === h.id ? null : h.id; script = h.rebuildScript; fit = {}; pickIface(h); }} aria-expanded={open === h.id}><span class="chev" class:open={open === h.id}><Icon name="chevron" size={14} /></span> More</button>
+          <button class="small" disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, () => post(`/hosts/${h.id}/credentials`))}>Update credentials</button>
+          <button class="small" disabled={busy[h.id]} onclick={() => confirm(`Revoke ${h.name}'s vault access? Its jobs run on the encrypted snapshot only until you update credentials again.`) && act(h, () => post(`/hosts/${h.id}/credentials/revoke`))}>Revoke</button>
+          <button class="small" disabled={busy[h.id] || h.status !== 'online'} onclick={() => reprovision(h)}>Re-provision</button>
+          <button class="small" disabled={h.status !== 'online'} onclick={() => (publish = publish === h.id ? null : h.id)}>Publish a port</button>
+          <button class="small quiet" onclick={() => { open = open === h.id ? null : h.id; script = h.rebuildScript; fit = {}; pickIface(h); }} aria-expanded={open === h.id}><span class="chev" class:open={open === h.id}><Icon name="chevron" size={14} /></span> More</button>
           <span class="grow"></span>
-          <button class="danger quiet" onclick={() => confirm(`Remove ${h.name} from the hub? Nothing on the machine changes.`) && act(h, () => del(`/hosts/${h.id}`))}>Remove</button>
+          <button class="small danger quiet" onclick={() => confirm(`Remove ${h.name} from the hub? Nothing on the machine changes.`) && act(h, () => del(`/hosts/${h.id}`))}>Remove</button>
         </footer>
         {#if publish === h.id}
           <Publish host={h.name} onclose={() => (publish = null)} />
@@ -313,10 +306,22 @@
 <style>
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); gap: 1rem; }
   .addr { font-family: var(--mono); font-size: 0.8em; color: var(--muted); }
-  .spark { width: 64px; height: 18px; }
+  /* The gauges: one tile per figure the machine reported — memory, load
+     against its cores, each mount — all the same shape so the bars read
+     as one row of meters. */
+  .gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.6rem 1rem; padding: 0.7rem 1rem 0.5rem; }
+  .gauges :global(.stat) { grid-template-rows: auto 1fr auto; }   /* the bars line up across a row even when a label wraps */
+  .gauges :global(.stat .k) { line-height: 1.25; overflow-wrap: anywhere; }
+  .none { padding: 0.7rem 1rem 0.3rem; margin: 0; }
+  .spark { width: 48px; height: 14px; flex: none; }
   .spark path { fill: none; stroke: var(--muted); stroke-width: 1.5; }
-  .switches { display: flex; gap: 1.2rem; flex-wrap: wrap; padding: 0.2rem 1rem; }
-  .agent { display: flex; gap: 0.35rem 0.9rem; flex-wrap: wrap; align-items: center; font-size: 0.85em; padding: 0.5rem 1rem 0.8rem; }
+  /* The chips: what the card has to say in words, as pills, with the two
+     switches at the end of the same line. */
+  .chips { display: flex; gap: 0.35rem 0.5rem; flex-wrap: wrap; align-items: center; padding: 0.3rem 1rem 0.7rem; font-size: 0.85em; }
+  .chips .pill b { font-weight: 600; font-family: var(--mono); }
+  .chips .led { width: 0.4rem; height: 0.4rem; }
+  .chips .check { font-size: 0.9em; }
+  .chips button.small { font-family: var(--mono); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .model-edit { gap: 0.4rem; padding: 0 1rem 0.8rem; }
   .more { border-top: 1px solid var(--line); padding: 0.25rem 1rem 1rem; background: color-mix(in srgb, var(--sunk) 40%, var(--card)); }
   .more h4 { margin-top: 1rem; }
