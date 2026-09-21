@@ -17,16 +17,16 @@ jobs:
       run:
         working-directory: hub
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: hub/go.mod
           cache-dependency-path: hub/go.sum
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -38,7 +38,7 @@ jobs:
       - name: Build deb packages
         run: make deb
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: homedash-deb
           path: hub/dist/*.deb
