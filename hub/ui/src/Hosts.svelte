@@ -67,7 +67,7 @@
     await act(h, () => post(`/hosts/${h.id}/ollama`, { installed }));
     ollamaBusy = { ...ollamaBusy, [h.id]: '' };
   }
-  // Update credentials everywhere: one host's success must not erase
+  // Sync credentials everywhere: one host's success must not erase
   // another's failure (H-5), so failures are collected across the whole
   // sweep and shown together rather than through act()'s per-call clear.
   async function updateAllCredentials() {
@@ -129,7 +129,7 @@
 
 <div class="bar">
   <button class="primary" onclick={() => (enroll = { name: '', rebuildFrom: '' })}><Icon name="plus" size={14} /> New remote</button>
-  <button disabled={hosts.length === 0} onclick={updateAllCredentials}>Update credentials everywhere</button>
+  <button disabled={hosts.length === 0} onclick={updateAllCredentials}>Sync omp credentials</button>
   {#if loadError}<Notice>{loadError}</Notice>{/if}
   {#if error}<Notice ondismiss={() => (error = '')}>{error}</Notice>{/if}
 </div>
