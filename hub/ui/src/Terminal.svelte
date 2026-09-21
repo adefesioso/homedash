@@ -46,6 +46,21 @@
       }
       window.__term = term; // tests only: read the buffer without a screenshot
 
+      // On phones the on-screen keyboard shrinks the visual viewport, not
+      // the layout one, so a `dvh`-sized terminal (and its focused hidden
+      // textarea) can end up covered even where
+      // `interactive-widget=resizes-content` (index.html) isn't honored
+      // yet (Safari). Shrink the box to whatever's actually visible above
+      // the keyboard and scroll it back into view.
+      const vv = window.visualViewport;
+      const onViewportChange = () => {
+        if (!vv) return;
+        host.style.maxHeight = `${vv.height}px`;
+        fit.fit();
+        host.scrollIntoView({ block: 'nearest' });
+      };
+      vv?.addEventListener('resize', onViewportChange);
+
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const ws = new WebSocket(`${proto}://${location.host}/api/agents/sessions/${id}/pty`);
       ws.binaryType = 'arraybuffer';
@@ -54,14 +69,14 @@
         fit.fit();
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ resize: { cols: term.cols, rows: term.rows } }));
       };
-      ws.onopen = () => { status = 'attached'; resize(); term.focus(); };
+      ws.onopen = () => { status = 'attached'; resize(); term.focus(); onViewportChange(); };
       ws.onmessage = (e) => term.write(new Uint8Array(e.data));
       ws.onclose = (e) => { status = e.reason === 'session ended' ? 'ended' : 'detached'; if (status === 'ended') onended?.(); };
       ws.onerror = () => { status = 'detached'; };
       const sub = term.onData((d) => { if (ws.readyState === WebSocket.OPEN) ws.send(enc.encode(d)); });
       const ro = new ResizeObserver(resize);
       ro.observe(host);
-      cleanup = () => { ro.disconnect(); sub.dispose(); ws.close(); term.dispose(); if (window.__term === term) delete window.__term; };
+      cleanup = () => { ro.disconnect(); sub.dispose(); ws.close(); term.dispose(); vv?.removeEventListener('resize', onViewportChange); if (window.__term === term) delete window.__term; };
     })();
     return () => { gone = true; cleanup?.(); };
   });
@@ -71,6 +86,6 @@
 <p class="status">{status}{#if readOnly && live} · read only — viewers watch{/if}</p>
 
 <style>
-  .term { height: min(70dvh, 40rem); background: #15181c; border-radius: var(--r); padding: 0.5rem; }
+  .term { height: min(70dvh, 40rem); overflow: auto; background: #15181c; border-radius: var(--r); padding: 0.5rem; }
   .status { color: var(--muted); font-size: 0.8em; font-family: var(--mono); margin: 0.4rem 0 0; }
 </style>
