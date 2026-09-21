@@ -9,6 +9,7 @@
   import ModelPick from './ModelPick.svelte';
   import Notice from './ui/Notice.svelte';
   import Stat from './ui/Stat.svelte';
+  import MobileStats from './MobileStats.svelte';
   import { splitModel, joinModel, halfPicked, badModel } from './lib/model.js';
 
   // The Hosts tab: one card per enrolled machine, showing what it last
@@ -18,6 +19,7 @@
   let loadError = $state('');     // set/cleared by load() only
   let error = $state('');         // set by an action; cleared by the next action or the × (X-7)
   let enroll = $state(null);      // {name, rebuildFrom} while the dialog is open; the line once minted
+  let mobileEnroll = $state(null); // {name} while the dialog is open; {code, pairUrl} once minted
   let open = $state(null);        // host id whose detail is open
   let busy = $state({});
   let fit = $state({});
@@ -84,6 +86,10 @@
     try { enroll = { ...enroll, ...(await post('/hosts/enroll', { name: enroll.name, rebuildFrom: enroll.rebuildFrom || '' })) }; }
     catch (e) { error = e.message; }
   };
+  const mintMobile = async () => {
+    try { mobileEnroll = { ...mobileEnroll, ...(await post('/hosts/mobile/enroll', { name: mobileEnroll.name })) }; }
+    catch (e) { error = e.message; }
+  };
   // Re-provision answers as soon as the SSH run is kicked off in the
   // background (204, no body) — the card would otherwise go quiet for
   // minutes with the button re-enabled and nothing to show for the
@@ -132,10 +138,12 @@
   const memPct = (f) => (f.memTotal ? Math.round((100 * f.memUsed) / f.memTotal) : 0);
   const loadPct = (f) => (f.cores ? Math.round((100 * f.load1) / f.cores) : 0);
   const status = (h) => ({ online: 'Online', offline: 'Offline', mismatch: 'Key mismatch', unknown: 'Unknown' }[h.status] ?? h.status);
+  const storagePct = (f) => (f.storageTotal ? Math.round((100 * (f.storageTotal - f.storageFree)) / f.storageTotal) : null);
 </script>
 
 <div class="bar">
   <button class="primary" onclick={() => (enroll = { name: '', rebuildFrom: '' })}><Icon name="plus" size={14} /> New remote</button>
+  <button onclick={() => (mobileEnroll = { name: '' })}><Icon name="plus" size={14} /> Add mobile</button>
   <button disabled={hosts.length === 0} onclick={updateAllCredentials}>Sync omp credentials</button>
   {#if loadError}<Notice>{loadError}</Notice>{/if}
   {#if error}<Notice ondismiss={() => (error = '')}>{error}</Notice>{/if}
@@ -162,6 +170,22 @@
   </section>
 {/if}
 
+{#if mobileEnroll}
+  <section class="card dialog" use:useEscape={() => (mobileEnroll = null)}>
+    {#if mobileEnroll.code}
+      <p>Enter this pairing code in the companion app on the phone. Good once, for fifteen minutes.</p>
+      <pre>{mobileEnroll.code}</pre>
+      <p class="muted small">The app posts to <code>{mobileEnroll.pairUrl}</code> to pair — puppeteering an Android phone needs that app installed on it; there is nothing more to do here until it does.</p>
+      <div class="row"><button class="primary" onclick={() => (mobileEnroll = null)}>Done</button></div>
+    {:else}
+      <div class="row fields">
+        <label>Name <input bind:value={mobileEnroll.name} placeholder="pixel, old-phone" /></label>
+      </div>
+      <div class="row"><button class="primary" onclick={mintMobile} disabled={!mobileEnroll.name.trim()}>Make the code</button><button class="quiet" onclick={() => (mobileEnroll = null)}>Cancel</button></div>
+    {/if}
+  </section>
+{/if}
+
 {#if !loadError && hosts.length === 0}
   <Empty text="No machines enrolled. One line pasted into a terminal joins one." action="New remote" onaction={() => (enroll = { name: '', rebuildFrom: '' })} />
 {:else if !loadError}
@@ -174,133 +198,141 @@
           <strong>{h.name}</strong>
           {#if h.status !== 'online'}<span class="pill bad">{status(h)}</span>{/if}
           <span class="grow"></span>
-          <span class="addr">{h.addr}</span>
+          {#if h.kind === 'mobile'}<span class="pill">mobile</span>{:else}<span class="addr">{h.addr}</span>{/if}
           <span class="muted small">{ago(h.lastSeen)}</span>
         </header>
-        {#if f.cores}
-          <div class="gauges">
-            <Stat label="memory of {bytes(f.memTotal)}" pct={memPct(f)} hot={memPct(f) > 85}>{bytes(f.memUsed)}</Stat>
-            <Stat label="load on {f.cores} cores" pct={loadPct(f)} hot={loadPct(f) > 100}>{f.load1}</Stat>
-            {#each f.mounts ?? [] as m}
-              {@const pct = m.size ? Math.round((100 * (m.size - m.free)) / m.size) : 0}
-              <Stat label="{m.path} free of {bytes(m.size)}" {pct} hot={pct > 85}>
-                {bytes(m.free)}
-                {#if m.path === '/' && rootFree(h).length > 1}<svg viewBox="0 0 80 20" class="spark" preserveAspectRatio="none"><title>root free, 48h</title><path d={sparkPath(rootFree(h))} /></svg>{/if}
-              </Stat>
-            {/each}
-          </div>
+        {#if h.kind === 'mobile'}
+          <MobileStats {f} />
+          <footer>
+            <span class="grow"></span>
+            <button class="small danger quiet" onclick={() => confirm(`Remove ${h.name} from the hub? The phone itself is unaffected until you unpair it there too.`) && act(h, () => del(`/hosts/${h.id}`))}>Remove</button>
+          </footer>
         {:else}
-          <p class="muted none">Nothing reported yet.</p>
-        {/if}
-        {#if f.gpu}
-          <div class="gpu-row">
-            <span class="pill {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
-          </div>
-        {/if}
-        <div class="chips">
-          {#if f.docker}<span class="pill">docker <b>{f.docker}</b></span>{/if}
-          {#if f.agent}
-            <span class="pill">omp <b>{f.agent.version}</b></span>
-            <button class="small" disabled={busy[h.id] || h.status !== 'online'} aria-expanded={modelEdit?.id === h.id} title="Change the model this machine's agent runs" onclick={() => (modelEdit = modelEdit?.id === h.id ? null : { id: h.id, pick: splitModel(f.agent.model), err: '' })}>{f.agent.model || 'fleet default'}</button>
-            {#if h.credentialsRevokedAt}<span class="pill bad">credentials revoked</span>
-            {:else if f.agent.snapshotAge == null}<span class="pill">no credentials yet</span>
-            {:else}<span class="pill ok">credentials {Math.round(f.agent.snapshotAge / 60)}m old</span>{/if}
-            {#if f.memTotal && f.memTotal < 1400 * 1048576}<span class="pill bad">too little memory for the agent</span>{/if}
-            {#if !f.agent.account}<span class="pill bad">no agent account: re-provision</span>{:else if !f.agent.cage}<span class="pill bad">network cage down</span>{/if}
+          {#if f.cores}
+            <div class="gauges">
+              <Stat label="memory of {bytes(f.memTotal)}" pct={memPct(f)} hot={memPct(f) > 85}>{bytes(f.memUsed)}</Stat>
+              <Stat label="load on {f.cores} cores" pct={loadPct(f)} hot={loadPct(f) > 100}>{f.load1}</Stat>
+              {#each f.mounts ?? [] as m}
+                {@const pct = m.size ? Math.round((100 * (m.size - m.free)) / m.size) : 0}
+                <Stat label="{m.path} free of {bytes(m.size)}" {pct} hot={pct > 85}>
+                  {bytes(m.free)}
+                  {#if m.path === '/' && rootFree(h).length > 1}<svg viewBox="0 0 80 20" class="spark" preserveAspectRatio="none"><title>root free, 48h</title><path d={sparkPath(rootFree(h))} /></svg>{/if}
+                </Stat>
+              {/each}
+            </div>
           {:else}
-            <span class="pill">no agent reported</span>
+            <p class="muted none">Nothing reported yet.</p>
           {/if}
-          <span class="grow"></span>
-          <label class="check" title={f.lock ? '' : 'The machine has not reported its SSH config yet'}>
-            <input type="checkbox" checked={f.lock?.locked ?? false} disabled={h.status !== 'online' || busy[h.id]}
-              onchange={(e) => act(h, () => post(`/hosts/${h.id}/lock`, { locked: e.target.checked }))} />
-            Locked
-          </label>
-          <label class="check">
-            <input type="checkbox" checked={f.ollama?.installed ?? false} disabled={h.status !== 'online' || busy[h.id]}
-              onchange={(e) => toggleOllama(h, e.target.checked)} />
-            Ollama{#if ollamaBusy[h.id]} <span class="muted">{ollamaBusy[h.id]}…</span>{:else if f.ollama?.installed && !f.ollama.running} <span class="warn">not running</span>{/if}
-          </label>
-        </div>
-        {#if modelEdit?.id === h.id}
-          <form class="form model-edit" use:useEscape={() => (modelEdit = null)} onsubmit={(e) => { e.preventDefault(); saveModel(h); }}>
-            <label>Model for {h.name}'s agent
-              <ModelPick bind:pick={modelEdit.pick} {providers} blank="fleet default" listId="host-{h.id}-models" />
-            </label>
-            {#if modelEdit.err}<Notice>{modelEdit.err}</Notice>{/if}
-            {#if providersError}<Notice>Providers could not be listed from omp: {providersError}</Notice>{/if}
-            <div class="row"><button type="submit" class="primary small">Save</button><button type="button" class="quiet small" onclick={() => (modelEdit = null)}>Cancel</button></div>
-          </form>
-        {/if}
-        {#if note[h.id]}<p class="muted small">{note[h.id]}</p>{/if}
-        <footer>
-          <button class="small" disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, () => post(`/hosts/${h.id}/credentials`))}>Update credentials</button>
-          <button class="small" disabled={busy[h.id]} onclick={() => confirm(`Revoke ${h.name}'s vault access? Its jobs run on the encrypted snapshot only until you update credentials again.`) && act(h, () => post(`/hosts/${h.id}/credentials/revoke`))}>Revoke</button>
-          <button class="small" disabled={busy[h.id] || h.status !== 'online'} onclick={() => reprovision(h)}>Re-provision</button>
-          <button class="small" disabled={h.status !== 'online'} onclick={() => (publish = publish === h.id ? null : h.id)}>Publish a port</button>
-          <button class="small quiet" onclick={() => { open = open === h.id ? null : h.id; script = h.rebuildScript; fit = {}; pickIface(h); }} aria-expanded={open === h.id}><span class="chev" class:open={open === h.id}><Icon name="chevron" size={14} /></span> More</button>
-          <span class="grow"></span>
-          <button class="small danger quiet" onclick={() => confirm(`Remove ${h.name} from the hub? Nothing on the machine changes.`) && act(h, () => del(`/hosts/${h.id}`))}>Remove</button>
-        </footer>
-        {#if publish === h.id}
-          <Publish host={h.name} onclose={() => (publish = null)} />
-        {/if}
-        {#if open === h.id}
-          <div class="more">
-            <h4>Rebuild script</h4>
-            <p class="help">What takes a fresh Debian to this machine's state. The hub's agent keeps it after every job; you can edit it.</p>
-            <textarea bind:value={script} rows="10" spellcheck="false"></textarea>
-            <div class="row"><button onclick={() => act(h, () => put(`/hosts/${h.id}/rebuild-script`, { script }))}>Save script</button></div>
-            <h4>What fits</h4>
-            <div class="row"><button disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, async () => { fit = { ...fit, [h.id]: await get(`/hosts/${h.id}/fit?n=8`) }; })}>Ask llmfit on {h.name}</button></div>
-            {#if fit[h.id]}
-              <div class="scroll">
-              <table class="stack">
-                <tbody>
-                  {#each fit[h.id].models as m}
-                    <tr><td><code>{m.ollama}</code></td><td>{m.fit}</td><td>{m.tokensPerSec ? `${m.tokensPerSec.toFixed(1)} tok/s` : ''}</td><td>{m.memoryGB.toFixed(1)} GB</td><td class="muted">{m.capabilities.join(', ')}</td></tr>
-                  {/each}
-                </tbody>
-              </table>
-              </div>
-              {#if fit[h.id].models.length === 0}<p class="muted">llmfit found nothing pullable that fits.</p>{/if}
-            {/if}
-            <h4>Address</h4>
-            <p class="help">What each interface reports. The hub reaches this machine at <code>{h.addr}</code>; a held address survives a new lease.</p>
-            {#if ifaces(h).length === 0}
-              <p class="muted">No interfaces reported yet.</p>
+          {#if f.gpu}
+            <div class="gpu-row">
+              <span class="pill {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
+            </div>
+          {/if}
+          <div class="chips">
+            {#if f.docker}<span class="pill">docker <b>{f.docker}</b></span>{/if}
+            {#if f.agent}
+              <span class="pill">omp <b>{f.agent.version}</b></span>
+              <button class="small" disabled={busy[h.id] || h.status !== 'online'} aria-expanded={modelEdit?.id === h.id} title="Change the model this machine's agent runs" onclick={() => (modelEdit = modelEdit?.id === h.id ? null : { id: h.id, pick: splitModel(f.agent.model), err: '' })}>{f.agent.model || 'fleet default'}</button>
+              {#if h.credentialsRevokedAt}<span class="pill bad">credentials revoked</span>
+              {:else if f.agent.snapshotAge == null}<span class="pill">no credentials yet</span>
+              {:else}<span class="pill ok">credentials {Math.round(f.agent.snapshotAge / 60)}m old</span>{/if}
+              {#if f.memTotal && f.memTotal < 1400 * 1048576}<span class="pill bad">too little memory for the agent</span>{/if}
+              {#if !f.agent.account}<span class="pill bad">no agent account: re-provision</span>{:else if !f.agent.cage}<span class="pill bad">network cage down</span>{/if}
             {:else}
-              <div class="ifaces">
-                {#each ifaces(h) as i (i.name)}
-                  <div class="iface"><code>{i.name}</code><span class="muted small">{i.mac}</span>
-                    {#each i.addrs ?? [] as a}<span>{a.cidr} <span class="pill {a.dynamic ? '' : 'ok'}">{a.dynamic ? 'DHCP' : 'held'}</span></span>{:else}<span class="muted">no address</span>{/each}
-                  </div>
-                {/each}
-                {#if f.network?.gateway}<div class="iface muted small">gateway {f.network.gateway} via {f.network.via}{#if f.network.dns?.length} · DNS {f.network.dns.join(', ')}{/if}{#if f.network.manager} · {f.network.manager}{/if}</div>{/if}
-              </div>
-              {#if f.network?.pending}<Notice>An address change is still waiting to be confirmed or reverted on {h.name}.</Notice>{/if}
-              {#if addr && open === h.id}
-                <form class="form addr-edit" onsubmit={(e) => { e.preventDefault(); setAddress(h, false); }}>
-                  <div class="row fields">
-                    <label>Interface
-                      <select bind:value={addr.iface} onchange={(e) => pickIface(h, e.target.value)}>
-                        {#each ifaces(h) as i}<option value={i.name}>{i.name}</option>{/each}
-                      </select>
-                    </label>
-                    <label>Address <input bind:value={addr.cidr} placeholder="192.168.1.20/24" required /></label>
-                    <label>Gateway <input bind:value={addr.gateway} placeholder="192.168.1.1" /></label>
-                    <label>DNS <input bind:value={addr.dns} placeholder="192.168.1.1 1.1.1.1" /></label>
-                  </div>
-                  <div class="row">
-                    <button type="submit" class="primary small" disabled={busy[h.id] || h.status !== 'online' || f.network?.pending}>Hold this address</button>
-                    <button type="button" class="quiet small" disabled={busy[h.id] || h.status !== 'online' || f.network?.pending} onclick={() => setAddress(h, true)}>Back to DHCP</button>
-                  </div>
-                </form>
-              {/if}
+              <span class="pill">no agent reported</span>
             {/if}
-            <h4>Host key</h4>
-            <code class="key">{h.hostKey}</code>
+            <span class="grow"></span>
+            <label class="check" title={f.lock ? '' : 'The machine has not reported its SSH config yet'}>
+              <input type="checkbox" checked={f.lock?.locked ?? false} disabled={h.status !== 'online' || busy[h.id]}
+                onchange={(e) => act(h, () => post(`/hosts/${h.id}/lock`, { locked: e.target.checked }))} />
+              Locked
+            </label>
+            <label class="check">
+              <input type="checkbox" checked={f.ollama?.installed ?? false} disabled={h.status !== 'online' || busy[h.id]}
+                onchange={(e) => toggleOllama(h, e.target.checked)} />
+              Ollama{#if ollamaBusy[h.id]} <span class="muted">{ollamaBusy[h.id]}…</span>{:else if f.ollama?.installed && !f.ollama.running} <span class="warn">not running</span>{/if}
+            </label>
           </div>
+          {#if modelEdit?.id === h.id}
+            <form class="form model-edit" use:useEscape={() => (modelEdit = null)} onsubmit={(e) => { e.preventDefault(); saveModel(h); }}>
+              <label>Model for {h.name}'s agent
+                <ModelPick bind:pick={modelEdit.pick} {providers} blank="fleet default" listId="host-{h.id}-models" />
+              </label>
+              {#if modelEdit.err}<Notice>{modelEdit.err}</Notice>{/if}
+              {#if providersError}<Notice>Providers could not be listed from omp: {providersError}</Notice>{/if}
+              <div class="row"><button type="submit" class="primary small">Save</button><button type="button" class="quiet small" onclick={() => (modelEdit = null)}>Cancel</button></div>
+            </form>
+          {/if}
+          {#if note[h.id]}<p class="muted small">{note[h.id]}</p>{/if}
+          <footer>
+            <button class="small" disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, () => post(`/hosts/${h.id}/credentials`))}>Update credentials</button>
+            <button class="small" disabled={busy[h.id]} onclick={() => confirm(`Revoke ${h.name}'s vault access? Its jobs run on the encrypted snapshot only until you update credentials again.`) && act(h, () => post(`/hosts/${h.id}/credentials/revoke`))}>Revoke</button>
+            <button class="small" disabled={busy[h.id] || h.status !== 'online'} onclick={() => reprovision(h)}>Re-provision</button>
+            <button class="small" disabled={h.status !== 'online'} onclick={() => (publish = publish === h.id ? null : h.id)}>Publish a port</button>
+            <button class="small quiet" onclick={() => { open = open === h.id ? null : h.id; script = h.rebuildScript; fit = {}; pickIface(h); }} aria-expanded={open === h.id}><span class="chev" class:open={open === h.id}><Icon name="chevron" size={14} /></span> More</button>
+            <span class="grow"></span>
+            <button class="small danger quiet" onclick={() => confirm(`Remove ${h.name} from the hub? Nothing on the machine changes.`) && act(h, () => del(`/hosts/${h.id}`))}>Remove</button>
+          </footer>
+          {#if publish === h.id}
+            <Publish host={h.name} onclose={() => (publish = null)} />
+          {/if}
+          {#if open === h.id}
+            <div class="more">
+              <h4>Rebuild script</h4>
+              <p class="help">What takes a fresh Debian to this machine's state. The hub's agent keeps it after every job; you can edit it.</p>
+              <textarea bind:value={script} rows="10" spellcheck="false"></textarea>
+              <div class="row"><button onclick={() => act(h, () => put(`/hosts/${h.id}/rebuild-script`, { script }))}>Save script</button></div>
+              <h4>What fits</h4>
+              <div class="row"><button disabled={busy[h.id] || h.status !== 'online'} onclick={() => act(h, async () => { fit = { ...fit, [h.id]: await get(`/hosts/${h.id}/fit?n=8`) }; })}>Ask llmfit on {h.name}</button></div>
+              {#if fit[h.id]}
+                <div class="scroll">
+                <table class="stack">
+                  <tbody>
+                    {#each fit[h.id].models as m}
+                      <tr><td><code>{m.ollama}</code></td><td>{m.fit}</td><td>{m.tokensPerSec ? `${m.tokensPerSec.toFixed(1)} tok/s` : ''}</td><td>{m.memoryGB.toFixed(1)} GB</td><td class="muted">{m.capabilities.join(', ')}</td></tr>
+                    {/each}
+                  </tbody>
+                </table>
+                </div>
+                {#if fit[h.id].models.length === 0}<p class="muted">llmfit found nothing pullable that fits.</p>{/if}
+              {/if}
+              <h4>Address</h4>
+              <p class="help">What each interface reports. The hub reaches this machine at <code>{h.addr}</code>; a held address survives a new lease.</p>
+              {#if ifaces(h).length === 0}
+                <p class="muted">No interfaces reported yet.</p>
+              {:else}
+                <div class="ifaces">
+                  {#each ifaces(h) as i (i.name)}
+                    <div class="iface"><code>{i.name}</code><span class="muted small">{i.mac}</span>
+                      {#each i.addrs ?? [] as a}<span>{a.cidr} <span class="pill {a.dynamic ? '' : 'ok'}">{a.dynamic ? 'DHCP' : 'held'}</span></span>{:else}<span class="muted">no address</span>{/each}
+                    </div>
+                  {/each}
+                  {#if f.network?.gateway}<div class="iface muted small">gateway {f.network.gateway} via {f.network.via}{#if f.network.dns?.length} · DNS {f.network.dns.join(', ')}{/if}{#if f.network.manager} · {f.network.manager}{/if}</div>{/if}
+                </div>
+                {#if f.network?.pending}<Notice>An address change is still waiting to be confirmed or reverted on {h.name}.</Notice>{/if}
+                {#if addr && open === h.id}
+                  <form class="form addr-edit" onsubmit={(e) => { e.preventDefault(); setAddress(h, false); }}>
+                    <div class="row fields">
+                      <label>Interface
+                        <select bind:value={addr.iface} onchange={(e) => pickIface(h, e.target.value)}>
+                          {#each ifaces(h) as i}<option value={i.name}>{i.name}</option>{/each}
+                        </select>
+                      </label>
+                      <label>Address <input bind:value={addr.cidr} placeholder="192.168.1.20/24" required /></label>
+                      <label>Gateway <input bind:value={addr.gateway} placeholder="192.168.1.1" /></label>
+                      <label>DNS <input bind:value={addr.dns} placeholder="192.168.1.1 1.1.1.1" /></label>
+                    </div>
+                    <div class="row">
+                      <button type="submit" class="primary small" disabled={busy[h.id] || h.status !== 'online' || f.network?.pending}>Hold this address</button>
+                      <button type="button" class="quiet small" disabled={busy[h.id] || h.status !== 'online' || f.network?.pending} onclick={() => setAddress(h, true)}>Back to DHCP</button>
+                    </div>
+                  </form>
+                {/if}
+              {/if}
+              <h4>Host key</h4>
+              <code class="key">{h.hostKey}</code>
+            </div>
+          {/if}
         {/if}
       </section>
     {/each}

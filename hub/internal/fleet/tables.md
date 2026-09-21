@@ -2,11 +2,13 @@
 
 ## Tables
 
-`hosts` — name, address and port, the account, the pinned host key,
-status (`unknown`, `online`, `offline`, `mismatch`), the last facts, the
-agent model override, `rebuild_script`, this host's `vault_token`,
-enrolled and last seen.
-`enroll_codes` — code, name, the host to rebuild from, expiry, used.
+`hosts` — name, kind (`compute` or `mobile` — see
+[mobile.md](../../../docs/pooling/mobile.md)), address and port, the
+account, the pinned host key (a mobile host's device key, for `compute`
+an SSH key), status (`unknown`, `online`, `offline`, `mismatch`), the
+last facts, the agent model override, `rebuild_script`, this host's
+`vault_token`, enrolled and last seen.
+`enroll_codes` — code, name, kind, the host to rebuild from, expiry, used.
 `metrics` and `metrics_hourly` — per host per sweep and per hour: memory
 used and total, load, GPU busy, free bytes per mountpoint.
 `devices` — kind (`lan`, `wifi`, `bt`), address, the guess (name, vendor,

@@ -45,3 +45,9 @@ Per-host encrypted values, keyed and read only through the job door.
 
 How a host's rebuild script is written and replayed.
 [tables.md](tables.md#the-rebuild-script)
+
+## Mobile
+
+`mobile.go`: pairing an Android phone instead of enrolling it over SSH —
+its own code, device key and heartbeat.
+[../../../docs/pooling/mobile.md](../../../docs/pooling/mobile.md)

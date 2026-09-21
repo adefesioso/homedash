@@ -116,3 +116,8 @@ Any port on a host card can be **published** as a service reachable from
 outside the house through the peers you name — see
 [publishing a service](../sharing/services.md). Nothing changes on the
 machine.
+
+## Android phones
+
+A phone can't run any of the above — no root shell, no SSH. It's a
+different kind of remote, paired rather than enrolled: [Mobile](mobile.md).

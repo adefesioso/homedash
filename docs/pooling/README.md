@@ -14,8 +14,8 @@ anything dangerous is refused in code.
 
 - **The hub** is the one small always-on machine running HomeDash. It
   holds the database and the SSH key, and does no work of its own.
-- **A remote** is any machine you enrolled. The hub reaches it over SSH
-  as its own account, pinned to the host key enrollment recorded.
+- **A remote** is a machine enrolled over SSH, or a phone paired through
+  its app — [Mobile](mobile.md).
 - **The heartbeat** is the hub connecting to every remote once a minute,
   re-reading what it says about itself, and keeping a few numbers.
 - **A device** is anything a remote can see that isn't enrolled — a
@@ -57,3 +57,4 @@ detail.
   credentials and secrets without any of them landing on a remote.
 - [Notifications](notifications.md) — the one target every transition
   into or out of trouble is sent to.
+- [Mobile](mobile.md) — pairing an Android phone as a remote to puppeteer.

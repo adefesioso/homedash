@@ -56,6 +56,8 @@ func Open(ctx context.Context, stateDir string) (*Store, error) {
 	for _, c := range []struct{ table, column, def string }{
 		{"hosts", "vault_token", "TEXT NOT NULL DEFAULT ''"},
 		{"hosts", "credentials_revoked_at", "TEXT NOT NULL DEFAULT ''"},
+		{"hosts", "kind", "TEXT NOT NULL DEFAULT 'compute'"},
+		{"enroll_codes", "kind", "TEXT NOT NULL DEFAULT 'compute'"},
 		{"jobs", "snapshot", "TEXT NOT NULL DEFAULT ''"},
 		{"windows", "scrollback", "BLOB"},
 	} {

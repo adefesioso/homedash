@@ -169,7 +169,7 @@ func (f *Fleet) NewCode(ctx context.Context, name string, rebuildFrom string) (*
 		from = h.ID
 	}
 	code := randomCode()
-	c, err := f.Store.NewEnrollCode(ctx, code, name, from)
+	c, err := f.Store.NewEnrollCode(ctx, code, name, "compute", from)
 	if err != nil {
 		return nil, "", err
 	}
@@ -197,7 +197,7 @@ func (f *Fleet) layout(ctx context.Context) (string, error) {
 // code is not live.
 func (f *Fleet) Script(ctx context.Context, code string) (string, error) {
 	c, err := f.Store.EnrollCode(ctx, code)
-	if err != nil || c == nil {
+	if err != nil || c == nil || c.Kind == "mobile" {
 		return "", err
 	}
 	layout, err := f.layout(ctx)
@@ -256,6 +256,9 @@ func (f *Fleet) Report(ctx context.Context, code, fromIP string, body []byte) (*
 	}
 	if c == nil {
 		return nil, errors.New("code is not live")
+	}
+	if c.Kind == "mobile" {
+		return nil, errors.New("this code is for a mobile remote; use the pairing endpoint")
 	}
 	var in struct {
 		Name    string          `json:"name"`
@@ -648,6 +651,7 @@ func (f *Fleet) Heartbeat(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
+			f.markStaleMobile(ctx, hosts)
 		}
 		if time.Since(lastRollup) > time.Hour {
 			if err := f.Store.RollupMetrics(ctx); err != nil {
@@ -670,6 +674,12 @@ func (f *Fleet) Heartbeat(ctx context.Context) {
 // key, fresh facts, and the status those two things imply. A transition
 // is an event; a repeat is not.
 func (f *Fleet) Sweep(ctx context.Context, h *store.Host) {
+	// A phone is never dialed into: it reports in on its own, through
+	// SetMobileStatus. Its offline transition is markStaleMobile's clock,
+	// not a failed connection here.
+	if h.Kind == "mobile" {
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	status := "online"

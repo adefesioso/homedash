@@ -79,6 +79,25 @@ func (s *Server) newEnrollment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"code": c.Code, "line": line, "expires": c.Expires})
 }
 
+// newMobileEnrollment mints a pairing code for an Android remote: no
+// line to paste, since a phone has no shell to paste it into. The
+// companion app posts to pairURL to spend the code.
+func (s *Server) newMobileEnrollment(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&in); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	c, pairURL, err := s.Fleet.NewMobileCode(r.Context(), in.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"code": c.Code, "pairUrl": pairURL, "expires": c.Expires})
+}
+
 func (s *Server) hostMetrics(w http.ResponseWriter, r *http.Request) {
 	h := s.host(w, r)
 	if h == nil {
@@ -338,10 +357,43 @@ func (s *Server) Enrollment() http.Handler {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		code := r.PathValue("code")
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		if _, err := s.Fleet.Report(r.Context(), r.PathValue("code"), ip, body); err != nil {
+		if ec, err := s.Store.EnrollCode(r.Context(), code); err == nil && ec != nil && ec.Kind == "mobile" {
+			h, deviceKey, err := s.Fleet.ReportMobile(r.Context(), code, body)
+			if err != nil {
+				s.log.Warn("mobile pairing refused", "from", ip, "err", err)
+				http.NotFound(w, r)
+				return
+			}
+			writeJSON(w, map[string]any{"id": h.ID, "name": h.Name, "deviceKey": deviceKey})
+			return
+		}
+		if _, err := s.Fleet.Report(r.Context(), code, ip, body); err != nil {
 			s.log.Warn("enrollment report refused", "from", ip, "err", err)
 			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	// A phone's periodic status push: authenticated by the device key it
+	// was handed at pairing, not a panel session — the app is never
+	// signed in. Its own listener, apart from the panel and the API, for
+	// the same reason the enrollment door is (docs/pooling/hosts.md).
+	mux.HandleFunc("POST /mobile/{host}/status", func(w http.ResponseWriter, r *http.Request) {
+		h, err := s.Store.Host(r.Context(), r.PathValue("host"))
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<16))
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		deviceKey := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if err := s.Fleet.SetMobileStatus(r.Context(), h, deviceKey, body); err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

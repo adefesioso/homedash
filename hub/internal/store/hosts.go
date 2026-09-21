@@ -16,6 +16,7 @@ const hostSchema = `
 CREATE TABLE IF NOT EXISTS hosts (
 	id          INTEGER PRIMARY KEY,
 	name        TEXT NOT NULL UNIQUE,
+	kind        TEXT NOT NULL DEFAULT 'compute' CHECK (kind IN ('compute','mobile')),
 	addr        TEXT NOT NULL,
 	port        INTEGER NOT NULL DEFAULT 22,
 	user        TEXT NOT NULL DEFAULT 'homedash',
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS hosts (
 CREATE TABLE IF NOT EXISTS enroll_codes (
 	code         TEXT PRIMARY KEY,
 	name         TEXT NOT NULL,
+	kind         TEXT NOT NULL DEFAULT 'compute' CHECK (kind IN ('compute','mobile')),
 	rebuild_from INTEGER REFERENCES hosts(id) ON DELETE SET NULL,
 	expires      TEXT NOT NULL,
 	used         INTEGER NOT NULL DEFAULT 0
@@ -86,8 +88,12 @@ var ErrNoHost = errors.New("no such host")
 
 // Host is one enrolled machine as the store holds it.
 type Host struct {
-	ID            int64           `json:"id"`
-	Name          string          `json:"name"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	// Kind is "compute" (the default: an SSH-reachable machine the fleet
+	// runs the agent on) or "mobile" (a puppeteered Android phone, paired
+	// through the app rather than enrolled over SSH — see mobile.go).
+	Kind          string          `json:"kind"`
 	Addr          string          `json:"addr"`
 	Port          int             `json:"port"`
 	User          string          `json:"user"`
@@ -105,12 +111,12 @@ type Host struct {
 	CredentialsRevokedAt string `json:"credentialsRevokedAt,omitempty"`
 }
 
-const hostCols = `id, name, addr, port, user, host_key, status, facts, agent_model, rebuild_script, vault_token, enrolled, COALESCE(last_seen, ''), credentials_revoked_at`
+const hostCols = `id, name, kind, addr, port, user, host_key, status, facts, agent_model, rebuild_script, vault_token, enrolled, COALESCE(last_seen, ''), credentials_revoked_at`
 
 func scanHost(sc interface{ Scan(...any) error }) (*Host, error) {
 	var h Host
 	var facts string
-	if err := sc.Scan(&h.ID, &h.Name, &h.Addr, &h.Port, &h.User, &h.HostKey, &h.Status, &facts, &h.AgentModel, &h.RebuildScript, &h.VaultToken, &h.Enrolled, &h.LastSeen, &h.CredentialsRevokedAt); err != nil {
+	if err := sc.Scan(&h.ID, &h.Name, &h.Kind, &h.Addr, &h.Port, &h.User, &h.HostKey, &h.Status, &facts, &h.AgentModel, &h.RebuildScript, &h.VaultToken, &h.Enrolled, &h.LastSeen, &h.CredentialsRevokedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNoHost
 		}
@@ -181,9 +187,13 @@ func (s *Store) AddHost(ctx context.Context, h *Host) (int64, error) {
 	if facts == "" {
 		facts = "{}"
 	}
+	kind := h.Kind
+	if kind == "" {
+		kind = "compute"
+	}
 	res, err := s.DB.ExecContext(ctx,
-		`INSERT INTO hosts(name, addr, port, user, host_key, facts, rebuild_script) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		h.Name, h.Addr, h.Port, h.User, h.HostKey, facts, h.RebuildScript)
+		`INSERT INTO hosts(name, kind, addr, port, user, host_key, facts, rebuild_script) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		h.Name, kind, h.Addr, h.Port, h.User, h.HostKey, facts, h.RebuildScript)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return 0, fmt.Errorf("a host named %q is already enrolled", h.Name)
@@ -240,23 +250,29 @@ func (s *Store) AppendRebuildScript(ctx context.Context, id int64, lines string)
 type EnrollCode struct {
 	Code        string `json:"code"`
 	Name        string `json:"name"`
+	Kind        string `json:"kind"`
 	RebuildFrom int64  `json:"rebuildFrom,omitempty"`
 	Expires     string `json:"expires"`
 }
 
-// NewEnrollCode mints a code that is good once, for fifteen minutes.
-func (s *Store) NewEnrollCode(ctx context.Context, code, name string, rebuildFrom int64) (*EnrollCode, error) {
+// NewEnrollCode mints a code that is good once, for fifteen minutes. kind
+// is "compute" (an SSH script fetch) or "mobile" (a pairing code the
+// companion app posts to).
+func (s *Store) NewEnrollCode(ctx context.Context, code, name, kind string, rebuildFrom int64) (*EnrollCode, error) {
+	if kind == "" {
+		kind = "compute"
+	}
 	exp := time.Now().Add(15 * time.Minute).UTC().Format(time.RFC3339)
 	var rf any
 	if rebuildFrom != 0 {
 		rf = rebuildFrom
 	}
 	_, err := s.DB.ExecContext(ctx,
-		`INSERT INTO enroll_codes(code, name, rebuild_from, expires) VALUES (?, ?, ?, ?)`, code, name, rf, exp)
+		`INSERT INTO enroll_codes(code, name, kind, rebuild_from, expires) VALUES (?, ?, ?, ?, ?)`, code, name, kind, rf, exp)
 	if err != nil {
 		return nil, err
 	}
-	return &EnrollCode{Code: code, Name: name, RebuildFrom: rebuildFrom, Expires: exp}, nil
+	return &EnrollCode{Code: code, Name: name, Kind: kind, RebuildFrom: rebuildFrom, Expires: exp}, nil
 }
 
 // EnrollCode returns a live code, or nil if it is unknown, used or expired.
@@ -264,8 +280,8 @@ func (s *Store) EnrollCode(ctx context.Context, code string) (*EnrollCode, error
 	var c EnrollCode
 	var rf sql.NullInt64
 	err := s.RO.QueryRowContext(ctx,
-		`SELECT code, name, rebuild_from, expires FROM enroll_codes WHERE code = ? AND used = 0 AND expires > ?`,
-		code, time.Now().UTC().Format(time.RFC3339)).Scan(&c.Code, &c.Name, &rf, &c.Expires)
+		`SELECT code, name, kind, rebuild_from, expires FROM enroll_codes WHERE code = ? AND used = 0 AND expires > ?`,
+		code, time.Now().UTC().Format(time.RFC3339)).Scan(&c.Code, &c.Name, &c.Kind, &rf, &c.Expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

@@ -86,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/tokens/{name}", s.deleteToken)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts/enroll", s.newEnrollment)
+	mux.HandleFunc("POST /api/hosts/mobile/enroll", s.newMobileEnrollment)
 	mux.HandleFunc("GET /api/hosts/{host}", s.getHost)
 	mux.HandleFunc("DELETE /api/hosts/{host}", s.removeHost)
 	mux.HandleFunc("GET /api/hosts/{host}/metrics", s.hostMetrics)
