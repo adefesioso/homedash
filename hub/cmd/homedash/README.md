@@ -29,10 +29,12 @@ reached only by IP can't do passkeys there no matter what; the hub
 refuses to start rather than silently fail sign-in if you set `auth.rpid`
 to one. If `HOMEDASH_ADDR` binds directly to a LAN *hostname*, or
 `hub.lan_addr` in Settings holds one (e.g. `raspberrypi.local` over
-mDNS/Avahi), that name is registered too, so passkeys also work when the
-panel is opened straight from a browser on the network instead of the
-launcher. `auth.rpid` and `auth.origins` in Settings override all of
-this, which is what a reverse proxy behind its own hostname needs. On
+mDNS/Avahi), that name is registered too — but browsers offer WebAuthn
+over plain `http://` only on `localhost`, so any other name needs HTTPS
+in front, with `auth.rpid` set to the name and `auth.origins` to its
+`https://` origin in Settings (both read at start). That is what
+[`packaging/https.sh`](../../packaging/https.sh) sets up — see
+[opening the panel from other machines](../../../docs/running/https.md). On
 every start the hub also mints a fresh admin token named `hub-agent` for
 its own omp windows, so they are a client like any other.
 

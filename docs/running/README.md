@@ -43,8 +43,12 @@ HomeDash is one `.deb`, one binary, and it installs as three things:
   A workstation installs the same package and never starts the service.
 
 `apt install ./homedash_*.deb` on the box you've picked as the hub;
-open HomeDash from the menu. Nothing else to install and nothing to
-configure — the first start creates the state file and the hub's key, and
+open HomeDash from the menu. To open it from any other machine in the
+house, run `hub/packaging/https.sh` once on the hub: passkeys only work
+over HTTPS off `localhost`, and it puts the panel behind
+`https://<hostname>.local` with a certificate your devices trust once —
+[opening the panel from other machines](https.md). Beyond that, nothing
+else to install and nothing to configure — the first start creates the state file and the hub's key, and
 fetches the one dependency the package does not carry: `omp`, at the
 version this hub was tested against, into the hub's own state directory.
 The hub drives `omp` over a protocol, so the version is the hub's to
@@ -119,6 +123,9 @@ path is a 404, not the panel's HTML.
 - [Working it from the command line](cli.md) — the same binary as a
   CLI on your workstation, signed in with your passkey through the
   browser, for you and for whatever assistant you already run.
+- [Opening the panel from other machines](https.md) — passkeys need
+  HTTPS anywhere but `localhost`; one script puts the panel behind
+  `https://<hostname>.local` with a CA you trust once per device.
 - [Keeping it updated](updating.md) — one script that puts an apt index
   in front of the releases page, so a new HomeDash arrives with
   `apt upgrade` instead of when you remember to fetch it.

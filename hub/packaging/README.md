@@ -15,6 +15,11 @@ icon under `/usr/share`. No Debian toolchain is needed.
   installed machine to feed a local apt repository from the GitHub
   releases, so upgrades arrive with `apt upgrade` — see
   [keeping it updated](../../docs/running/updating.md).
+- `https.sh` is not built into the package either: run once on the hub,
+  it installs Caddy in front of the panel with a local CA and points the
+  hub's passkey origin at `https://<hostname>`, so the panel signs in from
+  other machines — see
+  [opening the panel from other machines](../../docs/running/https.md).
 - `postinst.sh` creates the account and the state directory and
   enables the service; `prerm.sh` stops the service and removes the
   hub's copy of `omp` (`/var/lib/homedash/omp/bin`); `postrm.sh` on

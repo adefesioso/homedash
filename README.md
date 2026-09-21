@@ -98,7 +98,8 @@ that the spare machine you already have clears it.
   serverless space of hubs that run each other's inference and front each
   other's published services, each peer deciding what it accepts.
 - [Running it](docs/running/README.md) — the one small box, installing on
-  Debian and keeping it updated, where state lives and how it survives,
+  Debian, opening the panel from other machines and keeping it updated,
+  where state lives and how it survives,
   whether the hub itself is well, signing in, driving it from the command
   line, and what actually keeps the lab safe.
 - [hub/](hub/README.md) — the binary that runs all of it: the stack, the
