@@ -16,36 +16,24 @@ open.
 
 Enrollment needs the remote to reach the hub once, so a second listener,
 `:7434` on every interface (`HOMEDASH_ENROLL_ADDR`), answers exactly two
-things — `GET /enroll/<code>`, the script, and `POST /enroll/<code>`, its
-report — and only while that single-use code is live. Everything else on
-that port is a 404. The line the panel shows uses the hub's LAN address,
-worked out from its default route; `hub.lan_addr` in Settings overrides
-it.
+things while a single-use code is live — `GET /enroll/<code>`, the
+script, and `POST /enroll/<code>`, its report — and 404s everything else.
+The panel's line uses the hub's LAN address, from its default route
+unless `hub.lan_addr` in Settings overrides it.
 
-Passkeys are always registered for `localhost`, which is why the launcher
-opens `http://localhost:7433` rather than the loopback address. WebAuthn
-requires the RP ID to be a real domain — never a bare IP — so a hub
-reached only by IP can't do passkeys there no matter what; the hub
-refuses to start rather than silently fail sign-in if you set `auth.rpid`
-to one. If `HOMEDASH_ADDR` binds directly to a LAN *hostname*, or
-`hub.lan_addr` in Settings holds one (e.g. `homedash.local` over
-mDNS/Avahi), that name is registered too — but browsers offer WebAuthn
-over plain `http://` only on `localhost`, so any other name needs HTTPS
-in front, with `auth.rpid` set to the name and `auth.origins` to its
-`https://` origin in Settings (both read at start). That is what
-[`packaging/https.sh`](../../packaging/https.sh) sets up — see
-[opening the panel from other machines](../../../docs/running/https.md). On
-every start the hub also mints a fresh admin token named `hub-agent` for
-its own omp windows, so they are a client like any other.
+Passkeys need a real domain as the WebAuthn RP ID, never a bare IP —
+see [rpid.md](rpid.md) for `auth.rpid`/`auth.origins` and reaching the
+panel by LAN hostname or HTTPS. On every start the hub also mints a
+fresh admin token named `hub-agent` for its own omp windows, so they are
+a client like any other.
 
 ## `homedash` (the launcher)
 
-With no subcommand, the desktop launcher: it waits up to five seconds for
-the local hub to answer `/api/health`, then opens the panel as an
-app-style browser window — Chromium-family browsers with `--app=`,
-Firefox in its own window, `xdg-open` as the fallback — fully detached.
-Passkeys work in the browser on `localhost`; they do not reliably work in
-WebKitGTK, which is why there is no embedded web view.
+With no subcommand, the desktop launcher: waits up to five seconds for
+the local hub to answer `/api/health`, then opens the panel as a
+detached app-style browser window (`--app=` on Chromium, its own window
+on Firefox, `xdg-open` as fallback) — no embedded web view, since
+passkeys need a real browser and don't reliably work in WebKitGTK.
 
 ## The shell's authority
 
@@ -57,17 +45,15 @@ event:
   default).
 - `token NAME` prints an admin API token, once.
 - `export FILE` writes the state directory as one file encrypted under a
-  passphrase (asked on the terminal, or `HOMEDASH_PASSPHRASE`); the hub
-  may be running.
-- `restore FILE` puts an export back, with the hub stopped: it refuses
-  while the hub answers on its port. The passphrase is asked the same way.
+  passphrase (terminal, or `HOMEDASH_PASSPHRASE`); the hub may be running.
+- `restore FILE` puts an export back; refuses while the hub is running.
 - `version` prints the build's version.
 
 ## The CLI
 
 Any other subcommand is the [CLI](../../internal/cli/README.md): the
 same binary on a workstation, talking to a hub over its API with the
-session `homedash login <hub-url>` left in `~/.config/homedash/`. `serve`,
-`open` and the three above are the hub's own; everything else — `hosts`,
-`run`, `start`, `deploy` … — is the fleet, as
+session `homedash login <hub-url>` left in `~/.config/homedash/`.
+`serve`, `open` and the three shell subcommands above are the hub's own;
+everything else — `hosts`, `run`, `start`, `deploy` … — is the fleet, as
 [the docs](../../../docs/running/cli.md) list it.

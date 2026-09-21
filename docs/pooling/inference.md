@@ -52,7 +52,7 @@ its free space.
 offers, not what this hub owns. There's nothing to pull or remove — only
 the peer's own panel can do that — so the column just says what's
 reachable through the space right now. It's also folded into the model
-picker: [oh-my-pi's own discovery](agents/README.md#models-and-providers)
+picker: [oh-my-pi's own discovery](agents/models.md)
 against the `homedash` provider lists a peer's models alongside this
 hub's, since placement above already reaches them through a peer when
 nothing local holds them — a picker naming one names a real choice. None

@@ -90,7 +90,7 @@ The hub's agent gets `list_devices`, and the
 [CLI](../running/cli.md) `homedash devices`: every device with its addresses, its guess, your
 name for it, and which remotes last saw it from which interface. That is
 what lets a request like "have something check the fridge's firmware
-every Sunday" become a [job](agents/README.md#a-job) or a
+every Sunday" become a [job](agents/jobs.md#a-job) or a
 [task](tasks.md) on the remote that can actually see the fridge, using
 whatever that remote has — `curl`, a vendor CLI, Bluetooth tools — on
 that machine and nowhere else. `name_device` lets the agent record what

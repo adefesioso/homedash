@@ -1,7 +1,6 @@
 # tests
 
-*The README describes what the hub does; nothing here checks that a live
-fleet actually does it.*
+*The README describes what the hub does; nothing here checks that it does.*
 
 An acceptance suite that runs the claims in [../README.md](../README.md)
 and [../docs](../docs) against a real [lab](../lab/README.md) — real SSH,
@@ -18,18 +17,17 @@ a Go unit test's fakes.
 ```
 
 Each `*_test.sh` maps to one doc file and calls hub-a's and hub-b's own
-APIs the way the panel, a window or the CLI would — run
-*from* the hub over the lab's SSH jump, since the houses are deliberately
-unreachable from this machine directly (one of the claims under test).
-Tests mint their own admin tokens and clean up what they create; the
-storage and sharing suites reuse the lab's existing "pool" cluster and
-peer connection rather than building throwaway ones, since the lab's VM
-table has no spare disks or third house to spare.
+APIs the way the panel, a window or the CLI would — run *from* the hub
+over the lab's SSH jump, since the houses are unreachable from this
+machine directly (one of the claims under test). Tests mint their own
+admin tokens and clean up what they create; storage and sharing reuse
+the lab's existing "pool" cluster and peer connection instead of
+building throwaway ones — the lab's VM table has no spares.
 
 The API suites never see the panel. [ui/](ui/README.md) drives the real
-panel in a real browser — passkey sign-in included, with a software
-authenticator instead of a switch that turns the login off — and runs
-from `./run.sh` as `ui`, or alone with `cd ui && npx playwright test`.
+panel in a real browser, passkey sign-in included via a software
+authenticator, and runs from `./run.sh` as `ui`, or alone with
+`cd ui && npx playwright test`.
 
 ## What is and isn't covered
 
@@ -54,8 +52,8 @@ mistaken for a pass.
 | `agents_test.sh` | [docs/pooling/agents/](../docs/pooling/agents/README.md): jobs, rounds, rollback, credentials, secrets, rebuild |
 | `notifications_test.sh` | [docs/pooling/notifications.md](../docs/pooling/notifications.md) |
 | `sharing_test.sh` | [docs/sharing/](../docs/sharing/README.md) |
-| `backup_test.sh` | [docs/running/README.md](../docs/running/README.md#where-the-state-lives), export and restore |
-| `health_test.sh` | [docs/running/README.md](../docs/running/README.md#is-the-hub-well), the hub's own health |
+| `backup_test.sh` | [docs/running/state.md](../docs/running/state.md), export and restore |
+| `health_test.sh` | [docs/running/health.md](../docs/running/health.md), the hub's own health |
 | `accounts_test.sh` | [docs/running/accounts.md](../docs/running/accounts.md) |
 | `cli_test.sh` | [docs/running/cli.md](../docs/running/cli.md): the installed binary's subcommands, with a token; `login` itself is in [ui/](ui/README.md) |
 | `safety_test.sh` | [docs/running/safety.md](../docs/running/safety.md) |

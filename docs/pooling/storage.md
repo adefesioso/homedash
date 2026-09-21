@@ -58,7 +58,7 @@ agent reading a report and pasting it into the next job. Anything bigger
 than a paragraph is lost in the retelling.*
 
 A **shared workspace** is a directory on a cluster that appears at the
-same path on every remote you name, so [jobs](agents/README.md#a-job) on
+same path on every remote you name, so [jobs](agents/jobs.md#a-job) on
 different machines work the same files. It is the option you reach for
 when a job on one remote should hand something to a job on another
 without the hub's agent carrying it: notes, findings and data go in as
@@ -68,7 +68,7 @@ they are. The hub's agent still directs; what it no longer has to do is
 relay.
 
 Pointing a job at a workspace is a matter of naming its path as the
-working directory — though a [job](agents/README.md#a-job) on a member
+working directory — though a [job](agents/jobs.md#a-job) on a member
 can write every workspace it is a member of, and a job on the gateway
 the whole cluster, wherever it started. Jobs on separate remotes can run
 at once on the same workspace, and a job that follows another finds what

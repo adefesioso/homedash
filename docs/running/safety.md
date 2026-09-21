@@ -113,9 +113,7 @@ hub takes a snapshot; **Roll back** on the job restores the machine to
 the moment before it — live on btrfs, at the next boot on LVM. On plain
 ext4 there is no snapshot and the job says so; the
 [rebuild script](../pooling/agents/rebuild.md) is then the way back, from
-a fresh Debian. Snapshots go when the job is trimmed.
-
-The panel, the sessions and an outside assistant are three front doors
-onto one implementation. None holds a key, opens a connection, or knows a
-hostname it didn't read from the hub, which is why swapping any of them
-changes nothing about what the lab will refuse to do.
+a fresh Debian. Snapshots go when the job is trimmed. The panel, the
+sessions and an outside assistant are three front doors onto one
+implementation, none holding a key or a hostname it didn't read from the
+hub — swapping any of them changes nothing about what the lab refuses.

@@ -34,5 +34,5 @@ written down rather than silently left out.
 and the enrollment of the new machine runs that host's script after the
 base setup, so a dead box is recreated rather than remembered. Along with
 the pinned host key, the script is the thing a
-[backup](../../running/README.md#where-the-state-lives) keeps per host
+[backup](../../running/state.md) keeps per host
 that you would otherwise be doing again by hand.

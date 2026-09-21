@@ -52,7 +52,7 @@ CLI is signed in as *you*, on this machine, and an assistant here is you
 at the keyboard. Point it at [safety](safety.md) to know what will be
 refused and why.
 
-The hub's own sessions on the [Agents tab](../pooling/agents/README.md#sessions)
+The hub's own sessions on the [Agents tab](../pooling/agents/sessions.md)
 are the one client that does not use the CLI: they have no shell at all,
 and reach the same fleet as [typed tools](../../hub/internal/mcp/README.md)
 over a small MCP server with a token of their own. They are not
