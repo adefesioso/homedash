@@ -28,6 +28,19 @@ func (s *Server) agentModels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list)
 }
 
+// refreshAgentModels is the "Refresh model cache" button under Settings
+// > Agents: forces omp to rediscover every provider right away instead
+// of waiting out modelsTTL, and returns the fresh listing so the panel
+// can update its pickers without a second round trip.
+func (s *Server) refreshAgentModels(w http.ResponseWriter, r *http.Request) {
+	list, err := s.Agent.RefreshModels(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, list)
+}
+
 // updateAgent is the hub side of "Update oh-my-pi" under Settings >
 // Agents: forces a fresh fetch and check of the pinned omp binary right
 // away. The panel walks every online host's own /reprovision alongside

@@ -168,6 +168,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/agents", s.agents)
 	mux.HandleFunc("POST /api/agents/update", s.updateAgent)
 	mux.HandleFunc("GET /api/agents/models", s.agentModels)
+	mux.HandleFunc("POST /api/agents/models/refresh", s.refreshAgentModels)
 	// The Agents tab's sessions (the windows table): close ends the omp
 	// process and keeps the row as history; DELETE removes the row.
 	mux.HandleFunc("GET /api/agents/sessions", s.listSessions)

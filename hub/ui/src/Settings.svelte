@@ -29,6 +29,7 @@
   let modelError = $state('');
   let remoteModelError = $state('');
   let ompBusy = $state(false);
+  let modelsBusy = $state(false);
   // providers: what the vault can run, from omp (GET /agents/models);
   // ModelPick edits each setting as {provider, model} (lib/model.js).
   let providers = $state([]);
@@ -103,6 +104,17 @@
     error = failed.join(' · ');
     ompBusy = false;
     await load();
+  }
+  // refreshModels: forces omp to rediscover every provider right away —
+  // a new vault credential or a pool host that just came online — rather
+  // than waiting out the minute-long cache a window opening also reads,
+  // so this is the same fix for a stale picker here as for a slow
+  // "New session" on Agents.
+  async function refreshModels() {
+    modelsBusy = true;
+    try { providers = await post('/agents/models/refresh'); providersError = ''; }
+    catch (e) { providersError = e.message; }
+    modelsBusy = false;
   }
   async function addSecret() {
     try {
@@ -199,7 +211,10 @@
       <dt>omp</dt><dd>{agent.ompVersion} — {agent.ready ? 'installed' : (agent.installError ? `not installed: ${agent.installError}` : 'fetching…')}</dd>
       <dt>Credential vault</dt><dd>{agent.vaultRunning ? 'running' : 'not running'}</dd>
     </dl>
-    <div class="row"><button onclick={updateOmp} disabled={ompBusy}>Update omp globally</button> {#if ompBusy}<span class="muted">starting…</span>{/if}</div>
+    <div class="row">
+      <button onclick={updateOmp} disabled={ompBusy}>Update omp globally</button> {#if ompBusy}<span class="muted">starting…</span>{/if}
+      <button onclick={refreshModels} disabled={modelsBusy}>Refresh model cache</button> {#if modelsBusy}<span class="muted">refreshing…</span>{/if}
+    </div>
   {/if}
   <form class="form" onsubmit={saveAgents}>
     <label>Hub model

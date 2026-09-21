@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -37,15 +36,13 @@ func (a *Agent) startWindow(id int64, model string) (*Window, error) {
 	if model != "" {
 		args = append(args, "--model", model)
 	}
-	// A fresh provider discovery per window (see jobs.go on models.db):
-	// drop the cache and let `omp models` rebuild it before the TUI starts.
-	for _, f := range []string{"models.db", "models.db-shm", "models.db-wal"} {
-		_ = os.Remove(filepath.Join(a.root(), "agent", f))
-	}
-	prime := exec.Command(a.bin(), "models")
-	prime.Env = a.env()
-	prime.Dir = a.windowsDir()
-	_ = prime.Run()
+	// Warm omp's provider cache before the TUI starts, reusing the same
+	// cache Models() serves to the panel's pickers: a window opened
+	// within modelsTTL of the last one costs no discovery at all. A
+	// stale credential or a pool host that just came online is caught
+	// up to on the next expiry, or right away with the panel's "Refresh
+	// model cache" button (RefreshModels), not forced on every window.
+	_, _ = a.Models(context.Background())
 	cmd := exec.Command(a.bin(), args...)
 	cmd.Env = a.env()
 	cmd.Dir = a.windowsDir()

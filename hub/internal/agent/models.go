@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -31,11 +33,27 @@ var (
 // Models is what the hub's omp can run: `omp models --json` with the
 // hub's environment, so credentials resolve through the vault and only
 // providers holding one (plus homedash, the pool) come back. Grouped by
-// provider, sorted, cached for modelsTTL.
+// provider, sorted, cached for modelsTTL. A window opening or a picker
+// rendering both read this same cache rather than each paying for their
+// own discovery.
 func (a *Agent) Models(ctx context.Context) ([]Provider, error) {
+	return a.models(ctx, false)
+}
+
+// RefreshModels forces omp to rediscover every provider — deleting its
+// on-disk cache first, so a stale credential or a pool host that just
+// came online is not left behind — and replaces the cached listing.
+// This is the "Refresh model cache" button under Settings > Agents; a
+// window opening never forces this itself, so a slow or unreachable
+// provider costs one discovery on expiry, not one per session.
+func (a *Agent) RefreshModels(ctx context.Context) ([]Provider, error) {
+	return a.models(ctx, true)
+}
+
+func (a *Agent) models(ctx context.Context, force bool) ([]Provider, error) {
 	modelsMu.Lock()
 	defer modelsMu.Unlock()
-	if modelsList != nil && time.Since(modelsAt) < modelsTTL {
+	if !force && modelsList != nil && time.Since(modelsAt) < modelsTTL {
 		return modelsList, nil
 	}
 	if !a.Status().Ready {
@@ -43,6 +61,11 @@ func (a *Agent) Models(ctx context.Context) ([]Provider, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	if force {
+		for _, f := range []string{"models.db", "models.db-shm", "models.db-wal"} {
+			_ = os.Remove(filepath.Join(a.root(), "agent", f))
+		}
+	}
 	cmd := exec.CommandContext(ctx, a.bin(), "models", "--json")
 	cmd.Dir = a.StateDir
 	cmd.Env = a.env()

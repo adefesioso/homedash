@@ -24,7 +24,13 @@ minute. Settings builds its hub and remote model pickers from it — a
 provider chosen from that list, a model id typed or picked beside it —
 because a model id alone does not say which provider runs it
 (`openai/gpt-4o-mini` is OpenRouter's tag for an OpenAI model, and the
-setting must read `openrouter/openai/gpt-4o-mini`).
+setting must read `openrouter/openai/gpt-4o-mini`). A window opening
+reads this same cache to warm omp's own on-disk provider cache before
+the TUI starts, rather than deleting and rebuilding it every time — a
+stale entry (a new credential, a pool host that just came online) is
+caught up to on the next minute's expiry, or right away with `POST
+/api/agents/models/refresh` ("Refresh model cache" under Settings >
+Agents), which deletes omp's on-disk cache and forces the discovery.
 
 ## Windows
 
