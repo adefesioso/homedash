@@ -359,11 +359,6 @@
   </form>
 </section>
 
-<section id="s-refusals" class="card">
-  <h2>What the hub refuses</h2>
-  <p class="help">However it is asked — from the panel, a session, an outside assistant or a task — and on every remote's own agent as a hook.</p>
-  <ul>{#each gate as g}<li>{g}</li>{/each}</ul>
-</section>
 </div>
 </div>
 

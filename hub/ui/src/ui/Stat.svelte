@@ -3,13 +3,13 @@
   // One figure a machine reported, over the word for it: 12 / cores.
   // `of` is the whole the figure is part of (used / total); `pct` draws
   // a Fill under it.
-  let { label, of, pct, hot = false, min, children } = $props();
+  let { label, of, pct, hot = false, level = null, min, children } = $props();
 </script>
 
 <div class="stat" style:min-width={min}>
   <span class="v">{@render children()}{#if of != null}<span class="of"> / {of}</span>{/if}</span>
   <span class="k">{label}</span>
-  {#if pct != null}<Fill {pct} {hot} />{/if}
+  {#if pct != null}<Fill {pct} {hot} {level} />{/if}
 </div>
 
 <style>

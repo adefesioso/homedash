@@ -33,21 +33,26 @@
 {#if loadError}<Notice>{loadError}</Notice>{/if}
 {#if error}<Notice ondismiss={() => (error = '')}>{error}</Notice>{/if}
 
-<section class="card">
-  <h2>Rules</h2>
-  <p class="help">One per line. The hub agent reads these alongside its standing instructions, on every window. What the hub refuses always takes precedence — a rule that would need a refused action is refused, not followed.</p>
-  <form class="form" onsubmit={(e) => { e.preventDefault(); save(); }}>
-    <label>
-      <textarea rows="10" placeholder="e.g. Ask before installing anything new.&#10;Prefer the smallest change that solves the problem." bind:value={rules} spellcheck="false"></textarea>
-    </label>
-    <div><button type="submit" class="primary">Save</button> <span class="muted">{saved}</span></div>
-  </form>
-</section>
-
-{#if gate.length > 0}
+<div class="sections">
   <section class="card">
-    <h2>What the hub refuses</h2>
-    <p class="help">Always, no rule above can override this.</p>
-    <ul>{#each gate as g}<li>{g}</li>{/each}</ul>
+    <p class="help">One per line. The hub agent reads these alongside its standing instructions, on every window. What the hub refuses always takes precedence — a rule that would need a refused action is refused, not followed.</p>
+    <form class="form" onsubmit={(e) => { e.preventDefault(); save(); }}>
+      <label>
+        <textarea rows="10" placeholder="e.g. Ask before installing anything new.&#10;Prefer the smallest change that solves the problem." bind:value={rules} spellcheck="false"></textarea>
+      </label>
+      <div><button type="submit" class="primary">Save</button> <span class="muted">{saved}</span></div>
+    </form>
   </section>
-{/if}
+
+  {#if gate.length > 0}
+    <section class="card">
+      <h2>What the hub refuses</h2>
+      <p class="help">Always, no rule above can override this.</p>
+      <ul>{#each gate as g}<li>{g}</li>{/each}</ul>
+    </section>
+  {/if}
+</div>
+
+<style>
+  .sections { display: grid; gap: 1rem; }
+</style>

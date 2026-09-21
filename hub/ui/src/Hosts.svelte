@@ -192,8 +192,12 @@
         {:else}
           <p class="muted none">Nothing reported yet.</p>
         {/if}
+        {#if f.gpu}
+          <div class="gpu-row">
+            <span class="pill {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
+          </div>
+        {/if}
         <div class="chips">
-          {#if f.gpu}<span class="pill {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>{/if}
           {#if f.docker}<span class="pill">docker <b>{f.docker}</b></span>{/if}
           {#if f.agent}
             <span class="pill">omp <b>{f.agent.version}</b></span>
@@ -304,7 +308,7 @@
 {/if}
 
 <style>
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); gap: 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr)); gap: 1rem; align-items: start; }
   .addr { font-family: var(--mono); font-size: 0.8em; color: var(--muted); }
   /* The gauges: one tile per figure the machine reported — memory, load
      against its cores, each mount — all the same shape so the bars read
@@ -313,17 +317,19 @@
   .gauges :global(.stat) { grid-template-rows: auto 1fr auto; }   /* the bars line up across a row even when a label wraps */
   .gauges :global(.stat .k) { line-height: 1.25; overflow-wrap: anywhere; }
   .none { padding: 0.7rem 1rem 0.3rem; margin: 0; }
+  /* The GPU chip: on its own line, not squeezed among the other chips. */
+  .gpu-row { padding: 0.3rem 1rem 0; }
+  .gpu-row .led { width: 0.4rem; height: 0.4rem; }
   .spark { width: 48px; height: 14px; flex: none; }
   .spark path { fill: none; stroke: var(--muted); stroke-width: 1.5; }
   /* The chips: what the card has to say in words, as pills, with the two
      switches at the end of the same line. */
   .chips { display: flex; gap: 0.35rem 0.5rem; flex-wrap: wrap; align-items: center; padding: 0.3rem 1rem 0.7rem; font-size: 0.85em; }
   .chips .pill b { font-weight: 600; font-family: var(--mono); }
-  .chips .led { width: 0.4rem; height: 0.4rem; }
   .chips .check { font-size: 0.9em; }
   /* Status pills read by a dot, not a colored bubble: the pill itself
      stays neutral, and a ::before dot carries the color, unless the pill
-     already has its own .led dot (the GPU chip). */
+     already has its own .led dot (the GPU chip, in .gpu-row). */
   .pill.ok, .pill.bad, .pill.accent { background: var(--sunk); color: inherit; }
   .pill.ok:not(:has(.led))::before,
   .pill.bad:not(:has(.led))::before,
