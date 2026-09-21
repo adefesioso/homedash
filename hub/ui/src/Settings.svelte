@@ -199,7 +199,7 @@
       <dt>omp</dt><dd>{agent.ompVersion} — {agent.ready ? 'installed' : (agent.installError ? `not installed: ${agent.installError}` : 'fetching…')}</dd>
       <dt>Credential vault</dt><dd>{agent.vaultRunning ? 'running' : 'not running'}</dd>
     </dl>
-    <div class="row"><button onclick={updateOmp} disabled={ompBusy}>Update oh-my-pi on hub and remotes</button> {#if ompBusy}<span class="muted">starting…</span>{/if}</div>
+    <div class="row"><button onclick={updateOmp} disabled={ompBusy}>Update omp globally</button> {#if ompBusy}<span class="muted">starting…</span>{/if}</div>
   {/if}
   <form class="form" onsubmit={saveAgents}>
     <label>Hub model
