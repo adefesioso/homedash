@@ -225,7 +225,7 @@
           {/if}
           {#if f.gpu}
             <div class="gpu-row">
-              <span class="pill {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
+              <span class="gpu-chip {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
             </div>
           {/if}
           <div class="chips">
@@ -349,8 +349,12 @@
   .gauges :global(.stat) { grid-template-rows: auto 1fr auto; }   /* the bars line up across a row even when a label wraps */
   .gauges :global(.stat .k) { line-height: 1.25; overflow-wrap: anywhere; }
   .none { padding: 0.7rem 1rem 0.3rem; margin: 0; }
-  /* The GPU chip: on its own line, not squeezed among the other chips. */
+  /* The GPU chip: on its own line, not squeezed among the other chips, and
+     read by its led dot rather than a colored bubble like the other pills. */
   .gpu-row { padding: 0.35rem 1rem; }
+  .gpu-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78em; font-weight: 500; }
+  .gpu-chip.ok { color: var(--ok); }
+  .gpu-chip.accent { color: var(--accent); }
   .gpu-row .led { width: 0.4rem; height: 0.4rem; }
   .spark { width: 48px; height: 14px; flex: none; }
   .spark path { fill: none; stroke: var(--muted); stroke-width: 1.5; }
@@ -360,12 +364,11 @@
   .chips .pill b { font-weight: 600; font-family: var(--mono); }
   .chips .check { font-size: 0.9em; }
   /* Status pills read by a dot, not a colored bubble: the pill itself
-     stays neutral, and a ::before dot carries the color, unless the pill
-     already has its own .led dot (the GPU chip, in .gpu-row). */
+     stays neutral, and a ::before dot carries the color. */
   .pill.ok, .pill.bad, .pill.accent { background: var(--sunk); color: inherit; }
-  .pill.ok:not(:has(.led))::before,
-  .pill.bad:not(:has(.led))::before,
-  .pill.accent:not(:has(.led))::before {
+  .pill.ok::before,
+  .pill.bad::before,
+  .pill.accent::before {
     content: '';
     display: inline-block;
     width: 0.4rem;
@@ -373,9 +376,9 @@
     border-radius: 50%;
     flex: none;
   }
-  .pill.ok:not(:has(.led))::before { background: var(--ok); }
-  .pill.bad:not(:has(.led))::before { background: var(--bad); }
-  .pill.accent:not(:has(.led))::before { background: var(--accent); }
+  .pill.ok::before { background: var(--ok); }
+  .pill.bad::before { background: var(--bad); }
+  .pill.accent::before { background: var(--accent); }
   .chips button.small { font-family: var(--mono); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .model-edit { gap: 0.4rem; padding: 0 1rem 0.8rem; }
   .more { border-top: 1px solid var(--line); padding: 0.25rem 1rem 1rem; background: color-mix(in srgb, var(--sunk) 40%, var(--card)); }
