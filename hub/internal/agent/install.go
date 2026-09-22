@@ -23,21 +23,32 @@ import (
 // binPath is where the pinned omp lives under the omp root.
 func binPath(root string) string { return filepath.Join(root, "bin", "omp") }
 
-// installed reports whether bin/omp is present and is the pinned version.
+// installed reports whether bin/omp is present and runs. Whether it is
+// current is not this hub's call any more — see selfUpdate.
 func installed(ctx context.Context, root string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := exec.CommandContext(ctx, binPath(root), "--version").Output()
+	return err == nil
+}
+
+// version reads the installed binary's own version string ("" if it
+// isn't there or won't run), for Status to show.
+func version(ctx context.Context, root string) string {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, binPath(root), "--version").Output()
 	if err != nil {
-		return false
+		return ""
 	}
-// `omp --version` prints "omp/<version>"; compare without the "v".
-	got := strings.TrimSpace(string(out))
-	return got == "omp/"+strings.TrimPrefix(OmpVersion, "v")
+	// `omp --version` prints "omp/<version>".
+	return strings.TrimPrefix(strings.TrimSpace(string(out)), "omp/")
 }
 
-// install fetches the pinned release asset for this architecture, checks it
-// against the release's SHA256SUMS.txt, and moves it into place atomically.
+// install fetches the latest release asset for this architecture, checks
+// it against the release's SHA256SUMS.txt, and moves it into place
+// atomically. It's the bootstrap for a machine with no omp binary yet;
+// once one exists, selfUpdate is how it stays current.
 func install(ctx context.Context, root string) error {
 	var asset string
 	switch runtime.GOARCH {
@@ -51,7 +62,7 @@ func install(ctx context.Context, root string) error {
 	if err := os.MkdirAll(filepath.Dir(binPath(root)), 0o700); err != nil {
 		return err
 	}
-	sums, err := fetch(ctx, ompRelease+"SHA256SUMS.txt")
+	sums, err := fetch(ctx, OmpRelease+"SHA256SUMS.txt")
 	if err != nil {
 		return fmt.Errorf("omp checksums: %w", err)
 	}
@@ -65,7 +76,7 @@ func install(ctx context.Context, root string) error {
 	if want == "" {
 		return fmt.Errorf("omp checksums: no entry for %s", asset)
 	}
-	body, err := fetch(ctx, ompRelease+asset)
+	body, err := fetch(ctx, OmpRelease+asset)
 	if err != nil {
 		return fmt.Errorf("omp %s: %w", asset, err)
 	}
@@ -78,6 +89,20 @@ func install(ctx context.Context, root string) error {
 		return err
 	}
 	return os.Rename(tmp, binPath(root))
+}
+
+// selfUpdate runs the installed binary's own updater: it checks GitHub's
+// latest release itself and replaces itself in place if newer. This is
+// what both "Update oh-my-pi" (the hub) and "Update omp on network"
+// (each remote) actually run, once a binary exists to ask.
+func selfUpdate(ctx context.Context, root string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, binPath(root), "update", "--force").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("omp update: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func fetch(ctx context.Context, url string) ([]byte, error) {

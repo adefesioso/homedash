@@ -46,6 +46,7 @@ type Agent struct {
 	installErr   string
 	ready        bool
 	vaultRunning bool
+	ompVersion   string
 	windows      map[int64]*Window
 }
 
@@ -145,10 +146,11 @@ func (a *Agent) run(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
+	v := version(ctx, a.root())
 	a.mu.Lock()
-	a.ready, a.installErr = true, ""
+	a.ready, a.installErr, a.ompVersion = true, "", v
 	a.mu.Unlock()
-	a.log.Info("omp ready", "version", OmpVersion, "bin", a.bin())
+	a.log.Info("omp ready", "version", v, "bin", a.bin())
 	a.runVault(ctx)
 }
 
@@ -185,9 +187,6 @@ func (a *Agent) setVault(up bool) {
 	a.mu.Unlock()
 }
 
-// OmpRelease is where the remotes fetch the same pinned omp from.
-const OmpRelease = ompRelease
-
 // VaultToken reads the vault's bearer token, which `auth-broker serve`
 // ensures on start. Delivered to a remote over SSH at enrollment.
 func (a *Agent) VaultToken() (string, error) {
@@ -212,7 +211,7 @@ func (a *Agent) Status() Status {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return Status{
-		OmpVersion:   OmpVersion,
+		OmpVersion:   a.ompVersion,
 		Ready:        a.ready,
 		InstallError: a.installErr,
 		VaultRunning: a.vaultRunning,
@@ -220,18 +219,23 @@ func (a *Agent) Status() Status {
 	}
 }
 
-// Reinstall forces a fresh fetch and checksum check of the pinned omp
-// binary, even when the installed one already matches the version — the
-// hub side of the "Update oh-my-pi" button under Settings > Agents, for
-// when a corrupted binary or a stuck retry needs more than waiting on
-// the minute backoff in run.
+// Reinstall is the hub side of the "Update oh-my-pi" button under
+// Settings > Agents: if omp is already there, its own updater checks
+// GitHub's latest release and replaces it in place; otherwise this is
+// the bootstrap fetch, for when a corrupted binary or a stuck retry
+// needs more than waiting on the minute backoff in run.
 func (a *Agent) Reinstall(ctx context.Context) error {
-	err := install(ctx, a.root())
+	var err error
+	if installed(ctx, a.root()) {
+		err = selfUpdate(ctx, a.root())
+	} else {
+		err = install(ctx, a.root())
+	}
 	a.mu.Lock()
 	if err != nil {
 		a.installErr = err.Error()
 	} else {
-		a.ready, a.installErr = true, ""
+		a.ready, a.installErr, a.ompVersion = true, "", version(ctx, a.root())
 	}
 	a.mu.Unlock()
 	return err
