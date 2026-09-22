@@ -59,6 +59,11 @@
     try { await post(`/jobs/${id}/rollback`); await load(); }
     catch (e) { error = e.message; }
   }
+  async function kill(id) {
+    if (!confirm('Stop this job on the remote right now?')) return;
+    try { await post(`/jobs/${id}/kill`); await load(); }
+    catch (e) { error = e.message; }
+  }
   async function correct(id) {
     try { await post(`/jobs/${id}/correct`, { text: correction }); correction = ''; await load(); }
     catch (e) { error = e.message; }
@@ -115,13 +120,14 @@
         <tr class="job" class:open={open === j.id} onclick={() => { open = open === j.id ? null : j.id; events = []; load(); }}>
           <td class="mono muted">#{j.id}</td>
           <td class="mono"><strong>{j.host}</strong></td>
-          <td><span class="pill {j.state === 'done' ? 'ok' : j.state === 'running' ? 'accent' : j.state === 'failed' || j.state === 'needs_you' ? 'bad' : ''}">{j.state.replace('_', ' ')}</span></td>
+          <td><span class="pill {j.state === 'done' ? 'ok' : j.state === 'running' ? 'accent' : j.state === 'failed' || j.state === 'needs_you' || j.state === 'killed' ? 'bad' : ''}">{j.state.replace('_', ' ')}</span></td>
           <td class="muted small">round {j.rounds}</td>
           <td class="text wide">{j.text.slice(0, 90)}</td>
           <td class="muted small nowrap">{ago(j.started)}</td>
+          <td class="nowrap">{#if j.state === 'running'}<button class="small danger" onclick={(e) => { e.stopPropagation(); kill(j.id); }}>Kill</button>{/if}</td>
         </tr>
         {#if open === j.id}
-          <tr class="detail"><td colspan="6">
+          <tr class="detail"><td colspan="7">
             {#if j.reason}<Notice>{j.reason}</Notice>{/if}
             <p class="muted small">snapshot: {j.snapshot || 'none'} {#if j.snapshot === 'none' || !j.snapshot}— no way back but the rebuild script{:else if j.snapshot === 'merge-at-boot'}— reboot the machine to complete the rollback{/if}
               {#if j.state !== 'running' && (j.snapshot === 'btrfs' || j.snapshot === 'lvm')}<button class="small" onclick={() => rollback(j.id)}>Roll back</button>{/if}</p>

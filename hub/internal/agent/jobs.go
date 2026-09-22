@@ -446,6 +446,43 @@ func (j *Jobs) Rollback(ctx context.Context, id int64) (*store.Job, error) {
 	return j.Store.Job(ctx, id)
 }
 
+// Kill stops a running job on its remote. It marks the row killed
+// first, guarded to running rows only, so the round it interrupts —
+// mid systemd-run --wait, about to notice its session died and call
+// EndJob itself — finds the row already past running and no-ops rather
+// than overwriting killed with failed. The host has to be online: with
+// no connection there is nothing to stop the process with.
+func (j *Jobs) Kill(ctx context.Context, id int64) (*store.Job, error) {
+	job, err := j.Store.Job(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if job.State != "running" {
+		return nil, errors.New("the job is not running")
+	}
+	h, err := j.Store.Host(ctx, strconv.FormatInt(job.HostID, 10))
+	if err != nil {
+		return nil, err
+	}
+	if h.Status != "online" {
+		return nil, fmt.Errorf("%s is offline; the job cannot be stopped until it reconnects", h.Name)
+	}
+	ok, err := j.Store.KillJob(ctx, id, "stopped by request")
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("the job is not running")
+	}
+	c, err := j.Fleet.Exec.Dial(ctx, fleet.Target(h))
+	if err == nil {
+		defer c.Close()
+		unit := "homedash-job-" + strconv.FormatInt(id, 10) + "-r" + strconv.Itoa(job.Rounds)
+		_, _ = remote.RunOn(ctx, c, []string{"sudo", "-n", "systemctl", "stop", "--no-block", unit}, nil)
+	}
+	return j.Store.Job(ctx, id)
+}
+
 func orNone(s string) string {
 	if s == "" {
 		return "none"

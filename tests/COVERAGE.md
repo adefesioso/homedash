@@ -117,6 +117,7 @@ is written; a claim that is not in this file is one nobody has read for.
 | Rounds are capped; at the cap the job is needs you, and that is an event | yes | |
 | A correction is a follow-up round on the same session | yes | |
 | Roll back: btrfs live, LVM at boot, ext4 says none and points at the rebuild script | ext4 branch | the lab's roots are ext4; the other two branches are asserted if a lab has them |
+| Kill stops a running job and marks it killed; refused once it isn't running | `test_kill_stops_a_running_job` | needs the small model to still be mid-`sleep` when kill lands; skips otherwise |
 | A Pi-class box refuses a job with the reason | yes | |
 | Re-provision runs the layout again without a new code or host record | yes | |
 | Fleet default model in Settings; card override; the card shows what the remote reported | override via `/agent` | |

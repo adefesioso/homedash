@@ -133,6 +133,19 @@ func (s *Server) rollbackJob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, j)
 }
 
+func (s *Server) killJob(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.jobID(w, r)
+	if !ok {
+		return
+	}
+	j, err := s.Jobs.Kill(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, j)
+}
+
 func (s *Server) correctJob(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.jobID(w, r)
 	if !ok {

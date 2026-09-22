@@ -129,6 +129,27 @@ test_rollback_follows_what_the_disk_allows() {
   esac
 }
 
+test_kill_stops_a_running_job() {
+  # jobs.md: "Kill stops a running job: it marks the row killed ... then
+  # SSHes over and systemctl stop --no-block's the round's own unit."
+  # Refused once the job is no longer running.
+  local tok id state out status
+  tok=$(token_a)
+  id=$(_start_job "$tok" remote-mid "Run the shell command: sleep 60. Then say: ack")
+  sleep 3
+  state=$(hub_curl hub-a "$tok" GET "/api/jobs/$id" | hub_body | jq -r .state)
+  if [ "$state" != "running" ]; then
+    skip "the job (a small model) did not stay running long enough to kill"
+    return
+  fi
+  out=$(hub_curl hub-a "$tok" POST "/api/jobs/$id/kill")
+  assert_status "kill on a running job succeeds" "$(echo "$out" | hub_status)" 200
+  assert_eq "the job is marked killed" "$(echo "$out" | hub_body | jq -r .state)" "killed"
+
+  out=$(hub_curl hub-a "$tok" POST "/api/jobs/$id/kill")
+  assert_status "kill on a job that isn't running is refused" "$(echo "$out" | hub_status)" 400
+}
+
 test_rounds_are_capped_and_the_job_is_marked_needs_you() {
   # agents/README.md#the-loop: "Rounds are capped — a Settings value,
   # three by default — and a job that reaches the cap is marked needs

@@ -41,4 +41,5 @@ scrollback kept after the process ends. [windows.md](windows.md)
 
 A job is one SSH round: snapshot, `omp` run as `homedash-agent` under
 `systemd-run` with a locked-down unit and only the paths it needs,
-events streamed back, retention and rollback. [jobs.md](jobs.md)
+events streamed back, retention, rollback, and a kill switch.
+[jobs.md](jobs.md)

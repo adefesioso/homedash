@@ -105,12 +105,29 @@ func (s *Store) StartRound(ctx context.Context, id int64) error {
 	return err
 }
 
-// EndJob records how a round ended.
+// EndJob records how a round ended. Guarded to running rows only: a
+// round that was killed already moved the state past running, and this
+// call — arriving after, once the round notices its session died —
+// must not overwrite that with its own idea of how the job ended.
 func (s *Store) EndJob(ctx context.Context, id int64, state, report, reason string) error {
 	_, err := s.DB.ExecContext(ctx,
-		`UPDATE jobs SET state = ?, report = ?, reason = ?, ended = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
+		`UPDATE jobs SET state = ?, report = ?, reason = ?, ended = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND state = 'running'`,
 		state, report, reason, id)
 	return err
+}
+
+// KillJob marks a running job killed, same guard as EndJob so a
+// concurrent normal end can't race it either way. Reports whether this
+// call was the one that took effect.
+func (s *Store) KillJob(ctx context.Context, id int64, reason string) (bool, error) {
+	res, err := s.DB.ExecContext(ctx,
+		`UPDATE jobs SET state = 'killed', reason = ?, ended = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND state = 'running'`,
+		reason, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // AppendJobEvent keeps one line the remote's omp emitted.

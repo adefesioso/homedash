@@ -76,6 +76,11 @@ it ran (live on btrfs; on LVM at the next boot, which is yours to do). A
 plain ext4 root has no snapshot, the job says `none`, and the
 [rebuild script](rebuild.md) remains the way back.
 
+**Kill** on a running job stops it on the remote right away and marks it
+`killed` — for one that's stuck, running long, or was started by
+mistake. It needs the host online to reach the process; once killed, the
+job's snapshot (if it took one) is still there to roll back to.
+
 ## The loop
 
 The hub's agent reads the report and decides: done, or not yet. A

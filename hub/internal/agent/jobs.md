@@ -34,11 +34,20 @@ capped by `agent.rounds` (3); at the cap the job is `needs_you`.
 `jobs.retention` (20) is applied per host after every round, and a
 trimmed job's snapshot is deleted with it.
 
+`Kill` stops a running job: it marks the row `killed` first (a guarded
+update, `WHERE state = 'running'`), then SSHes over and
+`systemctl stop --no-block`s the round's own unit
+(`homedash-job-<id>-r<round>`). Stopping the unit also ends the round's
+`systemd-run --wait`, so the round goroutine's own `EndJob` call lands
+after and finds the row already past `running` — same guard, so it's a
+no-op rather than overwriting `killed` with `failed`. Refused if the
+host is offline (nothing to SSH into) or the job isn't running.
+
 ## Tables
 
 `jobs` — host, working directory, the hub-side window that started it,
 model, text, round count, state (`running`, `done`, `failed`,
-`needs_you`), timeout, the remote's session id, the snapshot kind
+`needs_you`, `killed`), timeout, the remote's session id, the snapshot kind
 (`btrfs`, `lvm`, `none`, or `restored`), report, reason, started/ended.
 `job_events` — one row per line, in order.
 `usage` / `usage_hourly` — one row per reply / per host-hour: input,
