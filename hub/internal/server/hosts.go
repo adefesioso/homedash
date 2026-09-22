@@ -296,6 +296,23 @@ func (s *Server) reprovision(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// updateHostOmp replaces just the omp binary on a host, at the fleet's
+// pinned version — unlike reprovision, it leaves accounts, the key and
+// the cage alone. It takes a minute or two, so it runs in the background
+// and ends as an event.
+func (s *Server) updateHostOmp(w http.ResponseWriter, r *http.Request) {
+	h := s.host(w, r)
+	if h == nil {
+		return
+	}
+	go func() {
+		if err := s.Fleet.UpdateOmp(context.Background(), h); err != nil {
+			s.Notify("host.omp_update_failed", h.Name, h.Name+": omp update failed: "+err.Error())
+		}
+	}()
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // putRebuildScript takes the script two ways: `application/json`
 // `{"script": "..."}` (the panel) or the raw body as `text/plain` (or no
 // content type at all — the CLI's `rebuild -f`). A JSON body that is a

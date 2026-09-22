@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/hosts/{host}/credentials", s.updateCredentials)
 	mux.HandleFunc("POST /api/hosts/{host}/credentials/revoke", s.revokeCredentials)
 	mux.HandleFunc("POST /api/hosts/{host}/reprovision", s.reprovision)
+	mux.HandleFunc("POST /api/hosts/{host}/update-omp", s.updateHostOmp)
 	mux.HandleFunc("PUT /api/hosts/{host}/rebuild-script", s.putRebuildScript)
 	mux.HandleFunc("PUT /api/hosts/{host}/agent", s.setAgentModel)
 	mux.HandleFunc("GET /api/devices", s.listDevices)

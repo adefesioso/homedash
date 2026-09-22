@@ -43,8 +43,8 @@ func (s *Server) refreshAgentModels(w http.ResponseWriter, r *http.Request) {
 
 // updateAgent is the hub side of "Update oh-my-pi" under Settings >
 // Agents: forces a fresh fetch and check of the pinned omp binary right
-// away. The panel walks every online host's own /reprovision alongside
-// this call, since that is the only way a remote catches up on version.
+// away. The panel walks every online host's own /update-omp alongside
+// this call to bring the whole network to the same pinned version.
 func (s *Server) updateAgent(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		if err := s.Agent.Reinstall(context.Background()); err != nil {

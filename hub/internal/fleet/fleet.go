@@ -43,6 +43,9 @@ var enrollScript string
 //go:embed layout.sh
 var layoutScript string
 
+//go:embed omp.sh
+var ompScript string
+
 // RouterForwardAddr is where, on a remote's loopback, the hub's router
 // answers while a job's connection is up.
 const RouterForwardAddr = "127.0.0.1:11435"
@@ -244,6 +247,25 @@ func (f *Fleet) Reprovision(ctx context.Context, h *store.Host) error {
 	}
 	f.Notify("host.reprovisioned", h.Name, msg)
 	f.Sweep(ctx, h)
+	return nil
+}
+
+// UpdateOmp replaces just the omp binary on a host, at the fleet's pinned
+// OmpVersion — the minimal move, unlike Reprovision, which also redoes
+// accounts, the key and the cage.
+func (f *Fleet) UpdateOmp(ctx context.Context, h *store.Host) error {
+	script := "set -eu\nOMP_VERSION=" + shq(f.OmpVersion) + "\nOMP_RELEASE=" + shq(f.OmpRelease) + "\n" + ompScript
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	r, err := f.Exec.Run(ctx, Target(h), []string{"sudo", "-n", "sh", "-s"}, strings.NewReader(script))
+	if err != nil {
+		return err
+	}
+	if r.ExitCode != 0 {
+		return fmt.Errorf("omp update exited %d: %s", r.ExitCode, tail(r.Stderr))
+	}
+	f.Notify("host.omp_updated", h.Name, h.Name+": omp updated")
+	go f.Sweep(context.Background(), h)
 	return nil
 }
 

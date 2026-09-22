@@ -86,20 +86,20 @@
     }
     await save();
   }
-  // updateOmp: the hub re-fetches its own pinned omp right away, and
-  // every online remote catches up the only way a remote ever does — its
-  // own Re-provision — so this just walks the same endpoint that button
-  // hits, one host at a time, collecting failures the way "Update
-  // credentials everywhere" on Hosts does (one host's failure must not
-  // hide another's).
+  // updateOmp: the hub re-fetches its own pinned omp right away, and every
+  // online, SSH-reachable remote gets just its omp binary replaced (not a
+  // full Re-provision — accounts, key and cage are left alone), one host
+  // at a time, collecting failures the way "Update credentials everywhere"
+  // on Hosts does (one host's failure must not hide another's). Mobile
+  // remotes have no SSH and no omp binary, so they're skipped.
   async function updateOmp() {
-    if (!confirm(`Update oh-my-pi? The hub re-fetches its pinned build now. Every online remote re-runs its enrollment layout over SSH — accounts, key, cage and the pinned agent, not just omp — which is the only way a remote picks up a newer version; each takes a few minutes and finishes as an event.`)) return;
+    if (!confirm(`Update oh-my-pi to the fleet's pinned build (${agent?.ompVersion || 'current'}) on the hub and every online remote?`)) return;
     ompBusy = true;
     const failed = [];
     try { await post('/agents/update'); } catch (e) { failed.push(`this hub: ${e.message}`); }
     for (const h of hosts) {
-      if (h.status !== 'online') continue;
-      try { await post(`/hosts/${h.id}/reprovision`); } catch (e) { failed.push(`${h.name}: ${e.message}`); }
+      if (h.status !== 'online' || h.kind === 'mobile') continue;
+      try { await post(`/hosts/${h.id}/update-omp`); } catch (e) { failed.push(`${h.name}: ${e.message}`); }
     }
     error = failed.join(' · ');
     ompBusy = false;
