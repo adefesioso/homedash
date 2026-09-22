@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">HomeDash companion</string>
+    <string name="pairing_hint">Enter the hub address and the code from \"Add mobile\" on the Hosts tab.</string>
+    <string name="hub_address_hint">Hub address, e.g. 192.168.1.5:7434</string>
+    <string name="code_hint">Pairing code</string>
+    <string name="pair_button">Pair</string>
+    <string name="grant_usage_access">Grant usage access</string>
+    <string name="unpair_button">Unpair</string>
+</resources>

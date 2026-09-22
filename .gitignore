@@ -2,3 +2,8 @@ hub/dist/
 hub/ui/dist/
 node_modules/
 tests/ui/test-results/
+mobile/.gradle/
+mobile/build/
+mobile/app/build/
+mobile/local.properties
+mobile/.idea/

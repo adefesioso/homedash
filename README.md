@@ -17,7 +17,7 @@ lab that becomes a share of infrastructure a community holds together.
 **Inside one house.** Nothing connects the machines, so each is an
 island with its own SSH session, disks and login rules — what's running
 where takes a guess, so the lab drifts: disks fill next to empty ones
-while a GPU idles most of the day.
+while a GPU idles.
 
 **Between houses.** That waste repeats at different hours in every
 house, and a group with plenty of hardware between them has none in
@@ -51,8 +51,6 @@ machines or refuses it, and never passes it on.
 | Credentials | The hub's SSH key, brokered provider credentials | None — identity is the connection's public key |
 | State | One file on the hub | None — no shared ledger, no registry |
 
-A space you haven't joined is absent, a service you haven't published invisible.
-
 ## Three rules that run through all of it
 
 **The machine's word wins.** The panel shows what a remote last reported,
@@ -78,3 +76,5 @@ machine, held to a floor the spare machine you already have clears.
   every path above without a second house.
 - [tests/](tests/README.md) — an acceptance suite for these claims
   against a live lab, not a mock.
+- [mobile/](mobile/README.md) — the Android app a phone pairs into
+  the fleet with.

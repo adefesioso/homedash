@@ -44,3 +44,12 @@ Everything on a [Hosts](hosts.md) card that assumes SSH: the lock
 switch, Ollama, credentials, re-provision, publish a port, the rebuild
 script, address holding. None of it applies to a phone the hub never
 dials into, so a mobile card's **More** is just Remove.
+
+## The app
+
+[mobile/](../../mobile/README.md) is the companion app: a pairing screen
+that spends the code, then a foreground service that reads battery,
+storage, screen and the foreground app once a minute and posts them to
+`/mobile/{host}/status` with the device key it was handed. Nothing on
+the hub side changes to add it — it is just the first thing that speaks
+this doc's protocol.
