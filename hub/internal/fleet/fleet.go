@@ -43,9 +43,6 @@ var enrollScript string
 //go:embed layout.sh
 var layoutScript string
 
-//go:embed omp.sh
-var ompScript string
-
 // RouterForwardAddr is where, on a remote's loopback, the hub's router
 // answers while a job's connection is up.
 const RouterForwardAddr = "127.0.0.1:11435"
@@ -79,9 +76,10 @@ type Fleet struct {
 	// EnrollURL is where a remote fetches its script: the hub's LAN
 	// address and the enrollment port.
 	EnrollURL func() string
-	// OmpVersion and OmpRelease pin the agent a remote installs;
-	// LlmfitVersion and LlmfitRelease pin llmfit beside it.
-	OmpVersion, OmpRelease       string
+	// OmpRelease is GitHub's "latest release" alias: where a remote with
+	// no omp yet fetches it from. LlmfitVersion and LlmfitRelease pin
+	// llmfit beside it.
+	OmpRelease                   string
 	LlmfitVersion, LlmfitRelease string
 	// VaultToken reads the vault's bearer token, delivered over SSH.
 	VaultToken func() (string, error)
@@ -191,7 +189,7 @@ func (f *Fleet) layout(ctx context.Context) (string, error) {
 	// The values the layout reads as shell variables come first, so the
 	// same text runs from enrollment (which sets them) and from
 	// Reprovision (which sets them here).
-	head := "PUBKEY=" + shq(strings.TrimSpace(f.PubKey)) + "\nOMP_VERSION=" + shq(f.OmpVersion) + "\nOMP_RELEASE=" + shq(f.OmpRelease) +
+	head := "PUBKEY=" + shq(strings.TrimSpace(f.PubKey)) + "\nOMP_RELEASE=" + shq(f.OmpRelease) +
 		"\nLLMFIT_VERSION=" + shq(f.LlmfitVersion) + "\nLLMFIT_RELEASE=" + shq(f.LlmfitRelease) + "\nDEFAULT_MODEL=" + shq(model) + "\n"
 	return head + buf.String(), err
 }
@@ -250,14 +248,14 @@ func (f *Fleet) Reprovision(ctx context.Context, h *store.Host) error {
 	return nil
 }
 
-// UpdateOmp replaces just the omp binary on a host, at the fleet's pinned
-// OmpVersion — the minimal move, unlike Reprovision, which also redoes
-// accounts, the key and the cage.
+// UpdateOmp runs the omp binary's own updater on a host: it checks
+// GitHub's latest release itself and replaces itself in place if newer.
+// Unlike Reprovision, this touches nothing else — no accounts, key, or
+// cage.
 func (f *Fleet) UpdateOmp(ctx context.Context, h *store.Host) error {
-	script := "set -eu\nOMP_VERSION=" + shq(f.OmpVersion) + "\nOMP_RELEASE=" + shq(f.OmpRelease) + "\n" + ompScript
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	r, err := f.Exec.Run(ctx, Target(h), []string{"sudo", "-n", "sh", "-s"}, strings.NewReader(script))
+	r, err := f.Exec.Run(ctx, Target(h), []string{"sudo", "-n", "omp", "update", "--force"}, nil)
 	if err != nil {
 		return err
 	}

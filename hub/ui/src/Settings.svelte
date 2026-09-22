@@ -86,14 +86,15 @@
     }
     await save();
   }
-  // updateOmp: the hub re-fetches its own pinned omp right away, and every
-  // online, SSH-reachable remote gets just its omp binary replaced (not a
-  // full Re-provision — accounts, key and cage are left alone), one host
-  // at a time, collecting failures the way "Update credentials everywhere"
-  // on Hosts does (one host's failure must not hide another's). Mobile
-  // remotes have no SSH and no omp binary, so they're skipped.
+  // updateOmp: the hub runs omp's own updater against GitHub's latest
+  // release on itself, and every online, SSH-reachable remote does the
+  // same to its own omp (not a full Re-provision — accounts, key and
+  // cage are left alone), one host at a time, collecting failures the
+  // way "Update credentials everywhere" on Hosts does (one host's
+  // failure must not hide another's). Mobile remotes have no SSH and no
+  // omp binary, so they're skipped.
   async function updateOmp() {
-    if (!confirm(`Update oh-my-pi to the fleet's pinned build (${agent?.ompVersion || 'current'}) on the hub and every online remote?`)) return;
+    if (!confirm(`Check GitHub for the latest oh-my-pi release and update the hub (currently ${agent?.ompVersion || 'unknown'}) and every online remote?`)) return;
     ompBusy = true;
     const failed = [];
     try { await post('/agents/update'); } catch (e) { failed.push(`this hub: ${e.message}`); }

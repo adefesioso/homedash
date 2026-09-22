@@ -66,21 +66,21 @@ rm -f /etc/sudoers.d/"$AGENT"
 AGENT_HOME=$(getent passwd "$AGENT" | cut -d: -f6)
 chmod 0750 "$AGENT_HOME"
 
-say "the agent (omp $OMP_VERSION)"
-case "$(uname -m)" in
-  x86_64|amd64) ASSET=omp-linux-x64 ;;
-  aarch64|arm64) ASSET=omp-linux-arm64 ;;
-  *) echo "no omp build for $(uname -m)" >&2; exit 1 ;;
-esac
+say "the agent (omp)"
 BIN=/usr/local/bin
-if ! [ -x "$BIN/omp" ] || [ "$("$BIN/omp" --version 2>/dev/null)" != "omp/${OMP_VERSION#v}" ]; then
+if ! [ -x "$BIN/omp" ]; then
+  case "$(uname -m)" in
+    x86_64|amd64) ASSET=omp-linux-x64 ;;
+    aarch64|arm64) ASSET=omp-linux-arm64 ;;
+    *) echo "no omp build for $(uname -m)" >&2; exit 1 ;;
+  esac
   curl -fsSL "$OMP_RELEASE$ASSET" -o "$BIN/omp.part"
   want=$(curl -fsSL "${OMP_RELEASE}SHA256SUMS.txt" | awk -v a="$ASSET" '$2==a||$2=="*"a{print $1}')
   got=$(sha256sum "$BIN/omp.part" | cut -d' ' -f1)
   [ "$want" = "$got" ] || { echo "omp checksum mismatch" >&2; rm -f "$BIN/omp.part"; exit 1; }
   chmod 0755 "$BIN/omp.part"; mv "$BIN/omp.part" "$BIN/omp"
+  chown root:root "$BIN/omp"; chmod 0755 "$BIN/omp"
 fi
-chown root:root "$BIN/omp"; chmod 0755 "$BIN/omp"
 install -d -m 0700 -o "$AGENT" -g "$AGENT" "$AGENT_HOME/.omp" "$AGENT_HOME/.omp/agent" "$AGENT_HOME/.omp/cache"
 if [ -n "$DEFAULT_MODEL" ] && ! [ -f "$AGENT_HOME/.omp/agent/config.yml" ]; then
   printf 'modelRoles:\n  default: %s\n' "$DEFAULT_MODEL" > "$AGENT_HOME/.omp/agent/config.yml"

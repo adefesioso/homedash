@@ -2,20 +2,21 @@
 
 ## Install and the vault
 
-`OmpVersion` in `version.go` pins the release this hub was tested
-against. On start the pinned binary is fetched into `omp/bin/` if absent
-or the wrong version, checked against the release's `SHA256SUMS.txt`,
-and retried every minute until it lands; the panel serves meanwhile.
-`LlmfitVersion` is pinned in the same file for enrollment.
+`OmpRelease` in `version.go` is GitHub's "latest release" alias, not a
+pinned version. On start, if `omp/bin/omp` is missing it's fetched from
+there and checked against the release's `SHA256SUMS.txt`, retried every
+minute until it lands; the panel serves meanwhile. Once a binary exists,
+staying current is its own job: `omp update` checks GitHub itself and
+replaces itself in place. `LlmfitVersion` is still pinned in the same
+file for enrollment.
 
 Settings > Agents has an "Update oh-my-pi" button: `POST
-/api/agents/update` calls `Reinstall`, which redoes that fetch and check
-on the hub right away rather than waiting on the minute backoff — for a
-corrupted binary or a stuck retry. A remote only ever gets a newer
-pinned version through its own Re-provision (`internal/fleet`'s
-`layout.sh`), so the same button walks every online host's `/reprovision`
-from the panel; each finishes in the background and is reported as an
-event, same as clicking Re-provision by hand.
+/api/agents/update` calls `Reinstall`, which runs `omp update --force` on
+the hub right away (or the bootstrap fetch, if omp isn't installed yet).
+The same button walks every online remote's own `/hosts/{host}/update-omp`
+(`internal/fleet`'s `UpdateOmp`), which runs `omp update --force` there
+too, over SSH, touching nothing else; each finishes in the background
+and is reported as an event.
 
 Then `omp auth-broker serve --bind 127.0.0.1:8765` runs as a child of the
 hub, restarted if it exits: the only holder of refresh tokens and the

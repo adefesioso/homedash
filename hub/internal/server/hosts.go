@@ -296,8 +296,8 @@ func (s *Server) reprovision(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// updateHostOmp replaces just the omp binary on a host, at the fleet's
-// pinned version — unlike reprovision, it leaves accounts, the key and
+// updateHostOmp runs omp's own updater on a host, against GitHub's
+// latest release — unlike reprovision, it leaves accounts, the key and
 // the cage alone. It takes a minute or two, so it runs in the background
 // and ends as an event.
 func (s *Server) updateHostOmp(w http.ResponseWriter, r *http.Request) {

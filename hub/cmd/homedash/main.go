@@ -159,7 +159,7 @@ func serve(log *slog.Logger) error {
 			_, port, _ := net.SplitHostPort(enrollAddr)
 			return "http://" + net.JoinHostPort(lan, port)
 		},
-		OmpVersion: agent.OmpVersion, OmpRelease: agent.OmpRelease,
+		OmpRelease:    agent.OmpRelease,
 		LlmfitVersion: agent.LlmfitVersion, LlmfitRelease: agent.LlmfitRelease,
 		VaultToken: ag.VaultToken, VaultAddr: agent.VaultAddr,
 		Notify: notifyFn, Log: log,
