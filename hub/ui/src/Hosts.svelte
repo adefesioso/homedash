@@ -225,7 +225,7 @@
           {/if}
           {#if f.gpu}
             <div class="gpu-row">
-              <span class="gpu-chip {f.gpu.busy ? 'accent' : 'ok'}"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
+              <span class="gpu-chip"><span class="led {f.gpu.busy ? 'busy' : 'ok'}"></span>{f.gpu.name || 'GPU'}{f.gpu.busy ? ' busy' : ''}</span>
             </div>
           {/if}
           <div class="chips">
@@ -353,8 +353,6 @@
      read by its led dot rather than a colored bubble like the other pills. */
   .gpu-row { padding: 0.35rem 1rem; }
   .gpu-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78em; font-weight: 500; }
-  .gpu-chip.ok { color: var(--ok); }
-  .gpu-chip.accent { color: var(--accent); }
   .gpu-row .led { width: 0.4rem; height: 0.4rem; }
   .spark { width: 48px; height: 14px; flex: none; }
   .spark path { fill: none; stroke: var(--muted); stroke-width: 1.5; }
