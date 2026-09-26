@@ -11,7 +11,8 @@ source, disks, what the system and swap sit on (`systemSources`, and
 `systemDevices`: those plus the whole chain beneath each, LV, partition,
 disk — what the [gate](../gate/README.md) refuses disk tools on), GPU, Docker, Ollama, the
 lock as sshd would actually apply it, the agent's version, model and
-snapshot age, whether the agent account and the cage exist, and the
+snapshot age, whether the agent's account exists and the hub's hold is
+whole (`hold`: its key, the sshd drop-in, its sudoers line), and the
 network: each interface's IPv4 addresses with whether the kernel marks
 them `dynamic` (a lease) or not (held), the default gateway and the
 resolver's DNS, and which manager owns the config. A refused or timed-out connection is `offline`; a host key

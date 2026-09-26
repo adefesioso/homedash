@@ -30,9 +30,10 @@ tunnel while someone two streets away has a public address unused.
 ## The boundaries, stated once
 
 **The hub orchestrates; the remotes do the work.** Nothing is computed on
-the hub — no model, no container, no agent with hands on it. It keeps a
-database, opens SSH connections, copies bytes between sockets, and hosts
-sessions whose only tools are the fleet — a machine you already own.
+the hub. It keeps a database, opens SSH connections, copies bytes, and
+hosts the hub's agent, which dispatches jobs and never runs a command on
+a machine itself. Each remote's agent is root on its own box and nothing
+else: not the hub, not another remote, not the hub's hold on it.
 
 **Pooling is your whole fleet. Sharing is what you published, by name.**
 Two things cross to another house, both named first: inference — a
@@ -47,7 +48,7 @@ machines or refuses it, and never passes it on.
 | Network | Every device a remote can see | Never |
 | Storage | Pooled into clusters | Never |
 | Apps | Placed, run, published | A published service, one hop, through named peers |
-| Tasks and agents | Scheduled, run | Never |
+| Tasks and agents | Scheduled, run; a root agent per remote | Never — a peer's model never drives a job |
 | Credentials | The hub's SSH key, brokered provider credentials | None — identity is the connection's public key |
 | State | One file on the hub | None — no shared ledger, no registry |
 
@@ -56,9 +57,9 @@ machines or refuses it, and never passes it on.
 **The machine's word wins.** The panel shows what a remote last reported,
 never what the hub asked for — nothing to reconcile or drift.
 
-**A rule is not a control.** Anything that would be a disaster if
-ignored is refused in code, not hoped for — see
-[what keeps the lab safe](docs/running/safety.md).
+**A rule is not a control.** What would be a disaster if ignored is
+enforced where the one ignoring it can't reach — the hub, the other
+machines — not hoped for; see [what keeps the lab safe](docs/running/safety.md).
 
 **One box, one file, one process.** The hub is one small always-on
 machine, held to a floor the spare machine you already have clears.
@@ -66,7 +67,7 @@ machine, held to a floor the spare machine you already have clears.
 ## Where the rest is
 
 - [Pooling your own machines](docs/pooling/README.md) — joining, apps,
-  tasks, storage, GPUs, the fleet's agents.
+  tasks, storage, GPUs, the fleet's agents and their proposals.
 - [Sharing beyond your house](docs/sharing/README.md) — a serverless
   space of hubs sharing inference and services.
 - [Running it](docs/running/README.md) — installing, state, health,
@@ -76,5 +77,4 @@ machine, held to a floor the spare machine you already have clears.
   every path above without a second house.
 - [tests/](tests/README.md) — an acceptance suite for these claims
   against a live lab, not a mock.
-- [mobile/](mobile/README.md) — the Android app a phone pairs into
-  the fleet with.
+- [mobile/](mobile/README.md) — the Android app a phone pairs with.

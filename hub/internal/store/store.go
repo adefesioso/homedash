@@ -59,6 +59,7 @@ func Open(ctx context.Context, stateDir string) (*Store, error) {
 		{"hosts", "kind", "TEXT NOT NULL DEFAULT 'compute'"},
 		{"enroll_codes", "kind", "TEXT NOT NULL DEFAULT 'compute'"},
 		{"jobs", "snapshot", "TEXT NOT NULL DEFAULT ''"},
+		{"jobs", "changes", "TEXT NOT NULL DEFAULT ''"},
 		{"windows", "scrollback", "BLOB"},
 	} {
 		if err := addColumn(ctx, db, c.table, c.column, c.def); err != nil {
@@ -165,6 +166,15 @@ CREATE TABLE IF NOT EXISTS job_events (
 	line      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS job_events_job ON job_events(job_id, id);
+
+-- A proposal is an issue the hub's agent filed on the project's
+-- repository; kept for the daily cap and the link back.
+CREATE TABLE IF NOT EXISTS proposals (
+	id        INTEGER PRIMARY KEY,
+	title     TEXT NOT NULL,
+	url       TEXT NOT NULL,
+	created   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 `
 
 // Event is one row of the event log: a transition, not a state.

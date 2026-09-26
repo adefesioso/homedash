@@ -12,6 +12,9 @@ that would otherwise be rediscovered the hard way.
   waiting for SSH on a machine that never boots. Fix: `qm start <id>` for
   each stopped guest on Proxmox first (see `lab/lib.sh`'s `pve()`), then
   re-run `make up` or just wait for the guest-agent install step.
+- A remote enrolled before jobs ran as root still has the nftables
+  cage, `homedash-sudo` and the agent account in the docker group;
+  `safety_test.sh` fails on it until the card's Re-provision runs.
 - A remote enrolled before the remote model was set in Settings
   won't have `.omp/agent/models.yml` or `config.yml` on disk — the fleet
   default is applied at enrollment, not retroactively. Backfill with

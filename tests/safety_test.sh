@@ -106,88 +106,64 @@ test_no_api_call_reaches_ssh_without_a_token() {
   assert_status "GET /api/hosts with no Authorization header is refused" "$out" 401
 }
 
-# docs/running/safety.md — "A remote's agent is not root, and cannot
-# become root." These run as the agent account through the executor, with
-# the forwards up, exactly the way a job's own shell would see things
-# (agent_run in lib.sh).
+# docs/running/safety.md — "A remote's agent is root on its own box, and
+# that is all it is." These run the way a job's own shell does — root,
+# the agent's home, the forwards up (agent_run in lib.sh) — and check
+# what holds the three things a job may not do from outside the job.
 _as_agent() { agent_run hub-a "$1" "$2" "$3"; }
 
-test_agent_account_has_no_sudo() {
+test_a_job_shell_is_root_with_the_agent_home() {
   local tok body
   tok=$(token_a)
-  body=$(_as_agent "$tok" remote-mid "id -un; sudo -n true" | hub_body | jq -r .stdout)
+  body=$(_as_agent "$tok" remote-mid 'id -un; echo "home=$HOME"' | hub_body | jq -r .stdout)
   case "$body" in
-    homedash-agent*exit=0*) fail "the agent account cannot sudo (got: $body)" ;;
-    homedash-agent*) pass "the agent account is homedash-agent and cannot sudo" ;;
-    *) fail "the agent account is homedash-agent and cannot sudo (got: $body)" ;;
+    root*home=/home/homedash-agent*exit=0*) pass "a job's shell is root with the agent's home" ;;
+    *) fail "a job's shell is root with the agent's home (got: $body)" ;;
   esac
 }
 
-test_agent_account_has_docker_and_its_home_and_shared_storage() {
-  # safety.md: "docker is the one privilege it holds", and it writes "its
-  # own home ... and the house's shared storage, the cluster this remote
-  # is the gateway of and every workspace it is a member of". The lab's
-  # cluster `pool` has its gateway on remote-big.
-  local tok body cpath
-  tok=$(token_a)
-  body=$(_as_agent "$tok" remote-mid "id -nG | tr ' ' '\n' | grep -qx docker && echo IN-DOCKER-GROUP; docker version --format '{{.Server.Version}}' >/dev/null 2>&1 && echo DAEMON-OK; touch /home/homedash-agent/tests-x && echo HOME-OK; rm -f /home/homedash-agent/tests-x" | hub_body | jq -r .stdout)
-  case "$body" in
-    *IN-DOCKER-GROUP*DAEMON-OK*HOME-OK*) pass "the agent account is in the docker group, reaches the daemon and writes its home" ;;
-    *) fail "the agent account is in the docker group, reaches the daemon and writes its home (got: $body)" ;;
-  esac
-  cpath=$(hub_curl hub-a "$tok" GET /api/clusters | hub_body | jq -r '.[] | select(.name=="pool") | .path')
-  [ -n "$cpath" ] && [ "$cpath" != null ] || { skip "the lab's cluster pool is not there to test shared storage on"; return; }
-  body=$(_as_agent "$tok" remote-big "touch $cpath/tests-x && echo POOL-OK; rm -f $cpath/tests-x" | hub_body | jq -r .stdout)
-  case "$body" in
-    *POOL-OK*) pass "a job's account on the gateway writes the cluster" ;;
-    *) fail "a job's account on the gateway writes the cluster (got: $body)" ;;
+test_an_older_layouts_cage_and_sudo_door_are_gone() {
+  # jobs.md: Re-provision "removes what an older layout left (the network
+  # cage, homedash-sudo)"; enrollment.md: the agent's account has no groups.
+  local out
+  out=$("$SSH" remote-mid "sudo nft list table inet homedash-agent >/dev/null 2>&1 && echo CAGE; test -e /usr/local/bin/homedash-sudo && echo SUDO-HELPER; id -nG homedash-agent | grep -qw docker && echo DOCKER-GROUP; echo done" 2>/dev/null)
+  case "$out" in
+    *CAGE*|*SUDO-HELPER*|*DOCKER-GROUP*) fail "no cage, no homedash-sudo, no docker group for the agent's account — re-provision remote-mid (got: $out)" ;;
+    *done*) pass "no cage, no homedash-sudo, no docker group for the agent's account" ;;
+    *) fail "could not read remote-mid's layout (got: $out)" ;;
   esac
 }
 
-test_agent_account_cannot_touch_the_hubs_hold() {
+test_the_door_serves_the_router_and_no_root() {
+  # job-door.md: the door serves "exactly two things: the router ... and
+  # GET /secrets/{name}". The sudo path is gone, and the hub's panel is
+  # not forwarded.
   local tok body
   tok=$(token_a)
-  body=$(_as_agent "$tok" remote-mid "cat /etc/ssh/authorized_keys.d/homedash >/dev/null && echo READ; echo x >> /etc/sudoers.d/homedash && echo WROTE; rm -f /home/homedash-agent/.omp/agent/hooks/pre/homedash-refusals.ts && echo REMOVED; true" | hub_body | jq -r .stdout)
+  body=$(_as_agent "$tok" remote-mid "curl -s -o /dev/null -w 'sudo=%{http_code} ' -X POST http://127.0.0.1:11435/sudo; curl -s -o /dev/null -w 'router=%{http_code} ' http://127.0.0.1:11435/api/version; curl -s -o /dev/null -w 'api=%{http_code}' http://127.0.0.1:11435/api/hosts" | hub_body | jq -r .stdout)
   case "$body" in
-    *WROTE*|*REMOVED*) fail "the agent cannot write sudoers or remove its hook (got: $body)" ;;
-    *) pass "the agent cannot write sudoers or remove its hook" ;;
+    *sudo=404*router=200*api=404*) pass "the door serves the router, not root, not the hub's API" ;;
+    *) fail "the door serves the router, not root, not the hub's API (got: $body)" ;;
   esac
 }
 
-test_agent_account_is_caged_from_the_house() {
-  # The hub's LAN address is a private address; the agent's uid may not reach it.
-  local tok hub body
+test_a_job_round_puts_back_the_hubs_hold() {
+  # safety.md: "The hub's hold is put back after every round ... and
+  # records it as a host.hold_repaired event." Change the hub's sudoers
+  # line (still valid, so the round can start), run a trivial job, and
+  # read the line back.
+  local tok want got n0 id
   tok=$(token_a)
-  hub=$(hub_curl hub-a "$tok" GET /api/settings | hub_body | jq -r '."hub.lan_addr" // empty')
-  [ -n "$hub" ] || hub=$(hub_curl hub-a "$tok" GET /api/hosts | hub_body | jq -r '.[0].addr' | sed 's/\.[0-9]*$/.1/')
-  body=$(_as_agent "$tok" remote-mid "curl -s -m 3 -o /dev/null -w '%{http_code}' http://$hub:7433/ || echo caged; curl -s -m 3 -o /dev/null -w ' lo=%{http_code}' http://127.0.0.1:11435/api/version" | hub_body | jq -r .stdout)
-  case "$body" in
-    *caged*lo=200*) pass "the agent reaches loopback (the door) but not the hub's address" ;;
-    *caged*) pass "the agent cannot reach the hub's address (door check inconclusive: $body)" ;;
-    *) fail "the agent cannot reach the hub's address (got: $body)" ;;
-  esac
-}
-
-test_sudo_door_runs_an_allowed_command_and_refuses_a_protected_path() {
-  local tok body
-  tok=$(token_a)
-  body=$(_as_agent "$tok" remote-mid "homedash-sudo id -un; echo rc=\$?; homedash-sudo cat /etc/shadow; echo rc=\$?; homedash-sudo bash -c id; echo rc=\$?" | hub_body | jq -r .stdout)
-  case "$body" in
-    *root*rc=0*"protected path"*rc=126*"privileged program"*rc=126*) pass "homedash-sudo runs as root through the gate and refuses protected paths and shells" ;;
-    *) fail "homedash-sudo runs as root through the gate and refuses protected paths and shells (got: $body)" ;;
-  esac
-}
-
-test_sudo_door_can_be_switched_off() {
-  local tok body
-  tok=$(token_a)
-  hub_curl hub-a "$tok" PUT /api/settings '{"jobs.sudo":"off"}' >/dev/null
-  body=$(_as_agent "$tok" remote-mid "homedash-sudo id -un; echo rc=\$?" | hub_body | jq -r .stdout)
-  hub_curl hub-a "$tok" PUT /api/settings '{"jobs.sudo":""}' >/dev/null
-  case "$body" in
-    *"switched off"*rc=126*) pass "jobs.sudo off closes the door" ;;
-    *) fail "jobs.sudo off closes the door (got: $body)" ;;
-  esac
+  want='homedash ALL=(ALL) NOPASSWD:ALL'
+  n0=$(event_count hub-a "$tok" host.hold_repaired remote-mid)
+  "$SSH" remote-mid "sudo chattr -i /etc/sudoers.d/homedash; printf '%s\n# tests\n' '$want' | sudo tee /etc/sudoers.d/homedash >/dev/null" 2>/dev/null
+  id=$(_start_job "$tok" remote-mid "Say the single word: ack")
+  [ -n "$id" ] && [ "$id" != null ] && _wait_job "$tok" "$id" >/dev/null
+  got=$("$SSH" remote-mid "sudo cat /etc/sudoers.d/homedash" 2>/dev/null)
+  assert_eq "the hub's sudoers line is put back after the round" "$got" "$want"
+  assert_true "the restore is a host.hold_repaired event" test "$(event_count hub-a "$tok" host.hold_repaired remote-mid)" -gt "$n0"
+  # Leave the machine as the suite found it whatever happened above.
+  [ "$got" = "$want" ] || "$SSH" remote-mid "sudo chattr -i /etc/sudoers.d/homedash; echo '$want' | sudo tee /etc/sudoers.d/homedash >/dev/null; sudo chattr +i /etc/sudoers.d/homedash" 2>/dev/null
 }
 
 test_the_gate_publishes_its_list_of_refusals() {
@@ -229,34 +205,3 @@ test_every_gate_refusal_is_an_event() {
   assert_true "a refused command lands in the event log" test "$(event_count hub-a "$tok" gate.refused "")" -gt "$n0"
 }
 
-test_the_door_refuses_a_privileged_container_and_logs_every_use() {
-  # safety.md: the allowlist is "docker without privileged or
-  # host-namespace flags", and "every use of it is named, checked and
-  # logged".
-  local tok body runs0
-  tok=$(token_a)
-  runs0=$(event_count hub-a "$tok" sudo.run remote-mid)
-  body=$(_as_agent "$tok" remote-mid "homedash-sudo docker run --rm --privileged alpine id; echo rc=\$?; homedash-sudo docker run --rm --pid=host alpine id; echo rc=\$?; homedash-sudo true; echo rc=\$?" | hub_body | jq -r .stdout)
-  case "$body" in
-    *"privileged container"*rc=126*"privileged container"*rc=126*rc=0*) pass "docker --privileged and --pid=host are refused; a plain command is not" ;;
-    *) fail "docker --privileged and --pid=host are refused; a plain command is not (got: $body)" ;;
-  esac
-  assert_true "a command run through the door is an event" test "$(event_count hub-a "$tok" sudo.run remote-mid)" -gt "$runs0"
-}
-
-test_the_agent_unit_is_enforced_by_the_kernel() {
-  # safety.md: "inside a systemd unit the kernel enforces: NoNewPrivileges
-  # ... the system read-only (ProtectSystem=strict), a private /tmp".
-  # A job is the only thing that runs in that unit; start one whose
-  # instructions are to write outside its two places, and read the
-  # events it left. Cheaper and deterministic: run the same unit shape
-  # the hub uses, as the hub does, and try to write /usr.
-  local tok body
-  tok=$(token_a)
-  body=$(hub_curl hub-a "$tok" POST /api/hosts/remote-mid/run \
-    "$(jq -nc '{command:"sudo -n systemd-run --quiet --pipe --wait --collect --uid=homedash-agent --gid=homedash-agent -p NoNewPrivileges=yes -p ProtectSystem=strict -p PrivateTmp=yes -p ReadWritePaths=/home/homedash-agent sh -c \"touch /usr/tests-x 2>&1; echo rc=$?; touch /home/homedash-agent/tests-x && echo home-ok; rm -f /home/homedash-agent/tests-x\"",timeoutSeconds:30}')" | hub_body | jq -r .stdout)
-  case "$body" in
-    *"Read-only"*home-ok*) pass "the system is read-only to the agent's unit; its home is not" ;;
-    *) fail "the system is read-only to the agent's unit; its home is not (got: $body)" ;;
-  esac
-}

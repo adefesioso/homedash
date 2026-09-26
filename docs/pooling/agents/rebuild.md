@@ -4,7 +4,7 @@
 panel, by its agent — and when its disk dies the only record of that is
 your memory.*
 
-Every job ends with a report, and the report says what changed. The hub's
+Every job ends with a [change report](jobs.md#the-change-report). The hub's
 agent folds each one into that remote's **rebuild script**: one shell
 script per host, kept on the hub in the host's record, that takes a fresh
 Debian to the state this remote is in now — packages installed, files

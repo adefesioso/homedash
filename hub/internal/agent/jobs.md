@@ -1,56 +1,34 @@
 # Remote jobs
 
-`Jobs.Start` refuses a host under the memory floor, without an agent, or
-without the agent account (re-provision), records a `jobs` row, and runs
-one round in the background. A round is one SSH connection with the
-fleet's forwards up; on it, in order: `snapshot.sh snapshot <id>` as root
-(btrfs subvolume or LVM snapshot of `/`, or `none`; the kind lands on the
-row), then `omp --mode json -p --cwd <dir> --model <provider/id>
---approval-mode yolo --max-time <t>` (the model: the host's own
-override, else `agent.remote_model`, else the hub's
-`agent.default_model`) — not as the account the hub logged
-in as, but inside `sudo systemd-run` as `homedash-agent`, with
-`NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp`,
-`RestrictSUIDSGID`, `TasksMax`, `RuntimeMaxSec`, the optional
-`jobs.memory_max` and `jobs.cpu_quota`, and `ReadWritePaths` for the
-account's home (and so whatever is mounted under it), the working
-directory, the cluster this host is the gateway of and every workspace
-it is a member of (`sharedPaths`, each with systemd's `-` prefix so an
-unmounted one is skipped, not fatal); the prompt on stdin. Every
-JSON line omp emits is a `job_events` row, written in batches (every
-quarter second or fifty lines, one transaction) so a chatty job is not
-one fsync per line; the last assistant message is
-the report; a `sudo` line is appended for every `homedash-sudo` the door
-served. An assistant `message_end` line's `usage` (input, output, cache
-read/write tokens, cost) is a `usage` row against the host and the job —
-the Usage tab's numbers. The hub prepends one paragraph to every job's text: it has no
-root, it has docker, what it can write, `homedash-sudo` is how to ask for root (a package, a
-service, a mount, a data disk to format and add to fstab — never the system disk), end with a report listing
-every change as the commands that would make it again, name data that
-should survive a rebuild — plus the names of the secrets this host may
-read. `Correct` is `--resume <session>` on the remote's own session,
-capped by `agent.rounds` (3); at the cap the job is `needs_you`.
-`Rollback` runs `snapshot.sh rollback <id>` on a finished job. Retention
-`jobs.retention` (20) is applied per host after every round, and a
-trimmed job's snapshot is deleted with it.
+## Start
 
-`Kill` stops a running job: it marks the row `killed` first (a guarded
-update, `WHERE state = 'running'`), then SSHes over and
-`systemctl stop --no-block`s the round's own unit
-(`homedash-job-<id>-r<round>`). Stopping the unit also ends the round's
-`systemd-run --wait`, so the round goroutine's own `EndJob` call lands
-after and finds the row already past `running` — same guard, so it's a
-no-op rather than overwriting `killed` with `failed`. Refused if the
-host is offline (nothing to SSH into) or the job isn't running.
+`Jobs.Start` refuses: memory under the floor, no agent, no agent account (re-provision), cwd missing (`sudo test -d`). Then a `jobs` row and one round in the background.
+
+## A round
+
+One SSH connection, forwards up, in order:
+
+1. `snapshot.sh snapshot <id>` as root → btrfs, LVM or `none` on the row.
+2. `Fleet.ArmJob` → hook + fleet addresses ([job door](../fleet/job-door.md#the-hold-around-a-root-job)).
+3. `omp --mode json -p --cwd <dir> --model <m> --approval-mode yolo --max-time <t>` in `sudo systemd-run`, **root**, `HOME=/home/homedash-agent`; props `TasksMax`, `RuntimeMaxSec`, `ExecStopPost` (hold restore), optional `jobs.memory_max`/`jobs.cpu_quota`; prompt on stdin.
+4. `Fleet.CheckHold` on the same connection → `hold` event line if restored or broken.
+5. `parseChanges`: last `homedash-changes` block → `jobs.changes` (compact JSON); none keeps the previous round's; malformed → `stderr` event line.
+
+- Model: host override → `agent.remote_model` → `agent.default_model`.
+- Prompt prefix: root here, the three limits, the report and its keys, this host's secret names.
+- Each omp JSON line → `job_events`, batched (250 ms or 50 lines, one transaction). Last assistant message = report. `message_end` usage → `usage` row.
+- `Correct` = `--resume <session>`, capped by `agent.rounds` (3) → `needs_you`.
+- `Rollback` = `snapshot.sh rollback <id>`. Retention `jobs.retention` (20) per host; a trimmed job's snapshot goes with it.
+
+## Kill
+
+Marks the row `killed` (guarded `WHERE state = 'running'`), then `systemctl stop --no-block homedash-job-<id>-r<round>`. The round's own `EndJob` then no-ops on the same guard. Refused if offline or not running.
 
 ## Tables
 
-`jobs` — host, working directory, the hub-side window that started it,
-model, text, round count, state (`running`, `done`, `failed`,
-`needs_you`, `killed`), timeout, the remote's session id, the snapshot kind
-(`btrfs`, `lvm`, `none`, or `restored`), report, reason, started/ended.
-`job_events` — one row per line, in order.
-`usage` / `usage_hourly` — one row per reply / per host-hour: input,
-output, cache read/write tokens, cost, call count. Rolled up and
-trimmed the same way as `metrics` (see
-[the heartbeat](../fleet/heartbeat.md)).
+| Table | Holds |
+| --- | --- |
+| `jobs` | host, cwd, window, model, text, rounds, state (`running`/`done`/`failed`/`needs_you`/`killed`), timeout, session, snapshot (`btrfs`/`lvm`/`none`/`restored`), report, changes, reason, started/ended |
+| `job_events` | one row per line, in order |
+| `proposals` | filed issues: title, link, when; the daily cap counts 24 h |
+| `usage`, `usage_hourly` | per reply / per host-hour tokens and cost; rolled up like `metrics` ([heartbeat](../fleet/heartbeat.md)) |

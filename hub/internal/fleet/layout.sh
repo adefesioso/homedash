@@ -53,18 +53,15 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 usermod -aG docker "$ACCOUNT" || true
 
-say "the agent's account"
-# A job runs here: no sudo, ever; the hub account's group so shared
-# storage is writable; and the docker group, so a job runs containers on
-# its own box — root by another name, held by the hook, not the kernel.
+say "the agent's home"
+# The account owns the agent's state; a job runs as root with this home.
 if ! getent passwd "$AGENT" >/dev/null; then
-  useradd --create-home --shell /bin/bash -G "$ACCOUNT",docker "$AGENT"
+  useradd --create-home --shell /usr/sbin/nologin "$AGENT"
 fi
-usermod -aG "$ACCOUNT",docker "$AGENT"
-for g in sudo adm; do gpasswd -d "$AGENT" "$g" >/dev/null 2>&1 || true; done
+for g in sudo adm docker "$ACCOUNT"; do gpasswd -d "$AGENT" "$g" >/dev/null 2>&1 || true; done
 rm -f /etc/sudoers.d/"$AGENT"
 AGENT_HOME=$(getent passwd "$AGENT" | cut -d: -f6)
-chmod 0750 "$AGENT_HOME"
+chmod 0700 "$AGENT_HOME"
 
 say "the agent (omp)"
 BIN=/usr/local/bin
@@ -90,7 +87,7 @@ cat > "$AGENT_HOME/.omp/agent/models.yml" <<'MODELS'
 {{.ModelsYML}}
 MODELS
 chown "$AGENT:$AGENT" "$AGENT_HOME/.omp/agent/models.yml"; chmod 0600 "$AGENT_HOME/.omp/agent/models.yml"
-# The hook is root-owned in a root-owned directory: the agent traverses it and cannot change it.
+# The hook is root-owned; the hub writes it again before every job round.
 install -d -m 0755 -o root -g root "$AGENT_HOME/.omp/agent/hooks" "$AGENT_HOME/.omp/agent/hooks/pre"
 cat > "$AGENT_HOME/.omp/agent/hooks/pre/homedash-refusals.ts" <<'HOOK'
 {{.Hook}}
@@ -99,53 +96,19 @@ chmod 0644 "$AGENT_HOME/.omp/agent/hooks/pre/homedash-refusals.ts"
 cat > "$BIN/homedash-secret" <<'HELPER'
 {{.SecretHelper}}
 HELPER
-cat > "$BIN/homedash-sudo" <<'HELPER'
-{{.SudoHelper}}
-HELPER
-chmod 0755 "$BIN/homedash-secret" "$BIN/homedash-sudo"
+chmod 0755 "$BIN/homedash-secret"
 grep -q OMP_AUTH_BROKER_URL "$AGENT_HOME/.profile" 2>/dev/null || printf '\nexport OMP_AUTH_BROKER_URL=http://127.0.0.1:8765\n' >> "$AGENT_HOME/.profile"
 chown "$AGENT:$AGENT" "$AGENT_HOME/.profile"
 # An earlier layout kept the agent under the hub's account; that goes.
 rm -rf "$HOME_DIR/.omp" "$HOME_DIR/.local/bin/omp" "$HOME_DIR/.local/bin/homedash-secret" "$HOME_DIR/.local/bin/llmfit"
 
-say "the cage"
-install -d -m 0755 /etc/homedash
-AGENT_UID=$(id -u "$AGENT")
-cat > /etc/homedash/agent-cage.nft <<CAGE
-#!/usr/sbin/nft -f
-# Written by HomeDash. The cage: the agent account reaches loopback and the
-# internet; the house — the hub, the other remotes, every private address — it does not.
-table inet homedash-agent
-delete table inet homedash-agent
-table inet homedash-agent {
-  set private4 { type ipv4_addr; flags interval; elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 } }
-  chain output {
-    type filter hook output priority filter; policy accept;
-    meta skuid $AGENT_UID oifname "lo" accept
-    meta skuid $AGENT_UID ip daddr @private4 counter reject with icmp type admin-prohibited
-    meta skuid $AGENT_UID ip6 daddr { fc00::/7, fe80::/10 } counter reject
-  }
-}
-CAGE
-cat > /etc/systemd/system/homedash-agent-cage.service <<'UNIT'
-[Unit]
-Description=HomeDash: the agent account's network cage
-DefaultDependencies=no
-Before=network-pre.target
-Wants=network-pre.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/sbin/nft -f /etc/homedash/agent-cage.nft
-ExecStop=/usr/sbin/nft delete table inet homedash-agent
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+say "what an older layout left"
+# Jobs are root now: no network cage on an agent account, no sudo door.
+systemctl disable --now homedash-agent-cage.service >/dev/null 2>&1 || true
+nft delete table inet homedash-agent >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/homedash-agent-cage.service /etc/homedash/agent-cage.nft "$BIN/homedash-sudo"
 systemctl daemon-reload
-systemctl enable homedash-agent-cage.service >/dev/null 2>&1
-systemctl restart homedash-agent-cage.service
+install -d -m 0755 /etc/homedash
 
 say "llmfit $LLMFIT_VERSION"
 case "$(uname -m)" in x86_64|amd64) FIT=x86_64 ;; *) FIT=aarch64 ;; esac

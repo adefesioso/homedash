@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 )
 
@@ -22,20 +23,28 @@ type Job struct {
 	Session  string `json:"session,omitempty"`
 	Snapshot string `json:"snapshot,omitempty"`
 	Report   string `json:"report,omitempty"`
-	Reason   string `json:"reason,omitempty"`
-	Started  string `json:"started"`
-	Ended    string `json:"ended,omitempty"`
+	// Changes is the report's homedash-changes block, parsed: what the
+	// rebuild script and the catalog are updated from. Absent when the
+	// remote gave none.
+	Changes json.RawMessage `json:"changes,omitempty"`
+	Reason  string          `json:"reason,omitempty"`
+	Started string          `json:"started"`
+	Ended   string          `json:"ended,omitempty"`
 }
 
-const jobCols = `j.id, j.host_id, h.name, j.cwd, COALESCE(j.window_id, 0), j.model, j.text, j.rounds, j.state, j.timeout_s, j.session, j.snapshot, j.report, j.reason, j.started, COALESCE(j.ended, '')`
+const jobCols = `j.id, j.host_id, h.name, j.cwd, COALESCE(j.window_id, 0), j.model, j.text, j.rounds, j.state, j.timeout_s, j.session, j.snapshot, j.report, j.changes, j.reason, j.started, COALESCE(j.ended, '')`
 
 func scanJob(sc interface{ Scan(...any) error }) (*Job, error) {
 	var j Job
-	if err := sc.Scan(&j.ID, &j.HostID, &j.Host, &j.Cwd, &j.WindowID, &j.Model, &j.Text, &j.Rounds, &j.State, &j.TimeoutS, &j.Session, &j.Snapshot, &j.Report, &j.Reason, &j.Started, &j.Ended); err != nil {
+	var changes string
+	if err := sc.Scan(&j.ID, &j.HostID, &j.Host, &j.Cwd, &j.WindowID, &j.Model, &j.Text, &j.Rounds, &j.State, &j.TimeoutS, &j.Session, &j.Snapshot, &j.Report, &changes, &j.Reason, &j.Started, &j.Ended); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("no such job")
 		}
 		return nil, err
+	}
+	if changes != "" {
+		j.Changes = json.RawMessage(changes)
 	}
 	return &j, nil
 }
@@ -96,6 +105,12 @@ func (s *Store) SetJobSession(ctx context.Context, id int64, session string) err
 // btrfs, lvm, none, or restored after a rollback.
 func (s *Store) SetJobSnapshot(ctx context.Context, id int64, kind string) error {
 	_, err := s.DB.ExecContext(ctx, `UPDATE jobs SET snapshot = ? WHERE id = ?`, kind, id)
+	return err
+}
+
+// SetJobChanges keeps the change report a round ended with; "" clears it.
+func (s *Store) SetJobChanges(ctx context.Context, id int64, changes string) error {
+	_, err := s.DB.ExecContext(ctx, `UPDATE jobs SET changes = ? WHERE id = ?`, changes, id)
 	return err
 }
 

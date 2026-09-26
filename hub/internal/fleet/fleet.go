@@ -10,7 +10,6 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	_ "embed"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -134,7 +133,7 @@ type Facts struct {
 		Model       string `json:"model"`
 		SnapshotAge *int64 `json:"snapshotAge"`
 		Account     bool   `json:"account"`
-		Cage        bool   `json:"cage"`
+		Hold        *bool  `json:"hold"`
 	} `json:"agent"`
 }
 
@@ -184,7 +183,7 @@ func (f *Fleet) layout(ctx context.Context) (string, error) {
 	var buf bytes.Buffer
 	err := layoutTmpl.Execute(&buf, map[string]string{
 		"ModelsYML": strings.TrimSpace(modelsYML), "Hook": gate.Hook,
-		"SecretHelper": strings.TrimSpace(secretHelper), "SudoHelper": strings.TrimSpace(sudoHelper),
+		"SecretHelper": strings.TrimSpace(secretHelper),
 	})
 	// The values the layout reads as shell variables come first, so the
 	// same text runs from enrollment (which sets them) and from
@@ -251,7 +250,7 @@ func (f *Fleet) Reprovision(ctx context.Context, h *store.Host) error {
 // UpdateOmp runs the omp binary's own updater on a host: it checks
 // GitHub's latest release itself and replaces itself in place if newer.
 // Unlike Reprovision, this touches nothing else — no accounts, key, or
-// cage.
+// hook.
 func (f *Fleet) UpdateOmp(ctx context.Context, h *store.Host) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
@@ -371,7 +370,7 @@ func (f *Fleet) deliverCredentials(ctx context.Context, c *ssh.Client, h *store.
 		return false, err
 	}
 	h.VaultToken = tok
-	home := "/home/" + gate.AgentAccount
+	home := gate.AgentHome
 	if err := remote.WriteFile(ctx, c, home+"/.omp/auth-broker.token", []byte(tok), "0600", true); err != nil {
 		return false, err
 	}
@@ -401,7 +400,8 @@ func (f *Fleet) deliverCredentials(ctx context.Context, c *ssh.Client, h *store.
 	// `omp models` is the cheapest command that discovers auth storage,
 	// which in broker mode fetches /v1/snapshot and writes the encrypted
 	// cache; `auth-broker status` only pings. Its output is not needed.
-	r, err := remote.RunOn(ctx, c, []string{"sudo", "-n", "-u", gate.AgentAccount, "sh", "-lc", "cd && rm -f .omp/agent/models.db .omp/agent/models.db-* && OMP_AUTH_BROKER_URL=http://" + f.VaultAddr + " omp models >/dev/null 2>&1; test -f .omp/cache/auth-broker-snapshot.enc"}, nil)
+	// As root with the agent's home, the way a job runs.
+	r, err := remote.RunOn(ctx, c, []string{"sudo", "-n", "env", "HOME=" + home, "PATH=/usr/local/bin:/usr/bin:/bin", "sh", "-c", "cd && rm -f .omp/agent/models.db .omp/agent/models.db-* && OMP_AUTH_BROKER_URL=http://" + f.VaultAddr + " omp models >/dev/null 2>&1; test -f .omp/cache/auth-broker-snapshot.enc"}, nil)
 	if err != nil {
 		return false, err
 	}
@@ -439,8 +439,7 @@ func (f *Fleet) Forwards(ctx context.Context, c *ssh.Client, h *store.Host) (fun
 	return f.ForwardsFor(ctx, c, h, 0)
 }
 
-// ForwardsFor is Forwards for a job: what the door serves through the
-// sudo path is recorded under that job as well as in the event log.
+// ForwardsFor is Forwards for a job, by id.
 func (f *Fleet) ForwardsFor(ctx context.Context, c *ssh.Client, h *store.Host, jobID int64) (func(), error) {
 	proxyAddr, closeProxy, err := f.vaultProxy(h)
 	if err != nil {
@@ -499,10 +498,11 @@ func (f *Fleet) vaultProxy(h *store.Host) (string, func(), error) {
 }
 
 // door is the one thing a remote can reach on the hub through its own
-// tunnel: the router, the secrets this host was granted, and root — one
-// command at a time, through the gate, on this same connection. The
-// panel's listener is never forwarded, so an agent on a remote has no
-// route to the hub's API.
+// tunnel: the router, local-only, and the secrets this host was granted.
+// A remote's agent is root, so a peer's model never answers it: every
+// request through the door is marked local-only, which the router reads
+// as "no peer fallback". The panel's listener is never forwarded, so a
+// remote has no route to the hub's API.
 func (f *Fleet) door(c *ssh.Client, h *store.Host, jobID int64) (string, func(), error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -510,8 +510,12 @@ func (f *Fleet) door(c *ssh.Client, h *store.Host, jobID int64) (string, func(),
 	}
 	mux := http.NewServeMux()
 	if f.Router != nil {
+		local := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Header.Set("X-HomeDash-Local-Only", "1")
+			f.Router.ServeHTTP(w, r)
+		})
 		for _, p := range []string{"/api/tags", "/api/chat", "/api/generate", "/api/embed", "/api/embeddings", "/api/show", "/api/version", "/v1/"} {
-			mux.Handle(p, f.Router)
+			mux.Handle(p, local)
 		}
 	}
 	mux.HandleFunc("GET /secrets/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -527,67 +531,10 @@ func (f *Fleet) door(c *ssh.Client, h *store.Host, jobID int64) (string, func(),
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = io.WriteString(w, v)
 	})
-	mux.HandleFunc("POST /sudo", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := base64.StdEncoding.DecodeString(r.Header.Get("X-Command"))
-		command := strings.TrimSpace(string(raw))
-		if err != nil || command == "" {
-			http.Error(w, "usage: homedash-sudo COMMAND [ARGS...]", http.StatusBadRequest)
-			return
-		}
-		if v, _ := f.Store.Setting(r.Context(), "jobs.sudo"); v == "off" {
-			f.Notify("sudo.refused", h.Name, h.Name+": homedash-sudo is off in Settings: "+shortCmd(command))
-			http.Error(w, "refused: homedash-sudo is switched off on this hub", http.StatusForbidden)
-			return
-		}
-		if err := gate.PrivilegedOn(command, SystemDevices(h)); err != nil {
-			f.Notify("sudo.refused", h.Name, h.Name+": "+err.Error())
-			f.jobLine(r.Context(), jobID, "sudo", command, -1, err.Error())
-			http.Error(w, err.Error(), http.StatusForbidden)
-			return
-		}
-		f.Notify("sudo.run", h.Name, h.Name+": homedash-sudo "+shortCmd(command))
-		body := http.MaxBytesReader(w, r.Body, 64<<20)
-		res, err := remote.RunOn(r.Context(), c, []string{"sudo", "-n", "sh", "-c", "exec 2>&1; " + command}, body)
-		if err != nil {
-			f.jobLine(r.Context(), jobID, "sudo", command, -1, err.Error())
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		out := string(res.Stdout) + string(res.Stderr)
-		f.jobLine(r.Context(), jobID, "sudo", command, res.ExitCode, tailStr(out))
-		w.Header().Set("Content-Type", "text/plain")
-		w.Header().Set("X-Exit-Code", strconv.Itoa(res.ExitCode))
-		_, _ = io.WriteString(w, out)
-	})
 	mux.HandleFunc("/", http.NotFound)
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	return ln.Addr().String(), func() { _ = srv.Close() }, nil
-}
-
-// jobLine records what the door did for a job, as one event line the
-// panel and the hub's agent read beside omp's own.
-func (f *Fleet) jobLine(ctx context.Context, jobID int64, kind, command string, exit int, text string) {
-	if jobID == 0 {
-		return
-	}
-	b, _ := json.Marshal(map[string]any{"type": kind, "command": command, "exit": exit, "text": text})
-	_ = f.Store.AppendJobEvent(ctx, jobID, string(b))
-}
-
-func shortCmd(s string) string {
-	if len(s) > 120 {
-		return s[:117] + "..."
-	}
-	return s
-}
-
-func tailStr(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 2000 {
-		return "..." + s[len(s)-2000:]
-	}
-	return s
 }
 
 // secretHelper is `homedash-secret NAME` on a remote: the door's URL.
@@ -595,26 +542,6 @@ const secretHelper = `#!/bin/sh
 # HomeDash: read a secret the hub granted this machine, while a job runs.
 [ -n "$1" ] || { echo "usage: homedash-secret NAME" >&2; exit 2; }
 exec curl -fsS "http://` + RouterForwardAddr + `/secrets/$1"
-`
-
-// sudoHelper is `homedash-sudo COMMAND...` on a remote: not sudo, a
-// request to the hub through the door, which checks it, runs it as root
-// over its own connection, and returns the output and the exit code.
-// Standard input, if any, is the command's.
-const sudoHelper = `#!/bin/sh
-# HomeDash: run one command as root through the hub, while a job runs.
-# The hub checks it against the gate and the privileged allowlist, runs
-# it, logs it, and returns the output. There is no other route to root.
-[ $# -gt 0 ] || { echo "usage: homedash-sudo COMMAND [ARGS...]" >&2; exit 2; }
-out=$(mktemp); hdr=$(mktemp); trap 'rm -f "$out" "$hdr"' EXIT
-in=/dev/null; [ -t 0 ] || in=-
-status=$(curl -sS -o "$out" -D "$hdr" -w '%{http_code}' -H "X-Command: $(printf '%s' "$*" | base64 -w0)" --data-binary "@$in" "http://` + RouterForwardAddr + `/sudo") || { echo "homedash-sudo: the hub did not answer (is this a job?)" >&2; exit 125; }
-cat "$out"
-case "$status" in
-  200) exit "$(awk 'tolower($1)=="x-exit-code:"{gsub("\r","",$2); print $2}' "$hdr")" ;;
-  403) exit 126 ;;
-  *) echo "homedash-sudo: hub answered $status" >&2; exit 125 ;;
-esac
 `
 
 // UpdateCredentials is the card action: a fresh snapshot on one host,
@@ -775,7 +702,7 @@ func (f *Fleet) SetAgentModel(ctx context.Context, h *store.Host, model string) 
 	if model == "" {
 		content = ""
 	}
-	path := "/home/" + gate.AgentAccount + "/.omp/agent/config.yml"
+	path := gate.AgentHome + "/.omp/agent/config.yml"
 	if err := f.WriteFile(ctx, h, path, []byte(content), "0600", true); err != nil {
 		return err
 	}

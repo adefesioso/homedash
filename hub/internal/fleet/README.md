@@ -7,8 +7,9 @@ goes through.
 
 ## Enrollment
 
-Mints the enroll code, renders `enroll.sh`, and lays down the two
-accounts, the cage and the agent state a remote needs to join the fleet.
+Mints the enroll code, renders `enroll.sh`, and lays down the hub's
+account, the agent's home and hook, and removes an older layout's cage
+and sudo door.
 [enrollment.md](enrollment.md)
 
 ## The heartbeat and the scan
@@ -20,9 +21,9 @@ every ten. [heartbeat.md](heartbeat.md)
 ## The forwards and the job door
 
 Every SSH connection to a remote carries a vault proxy and a job door —
-the router, secrets and `sudo` a job or a helper script reaches over
-loopback, gated the same way as everything else — plus held connections
-for published services. [job-door.md](job-door.md)
+the local-only router and the secrets a job reaches over loopback — plus
+held connections for published services, and the hub's hold checked and
+restored around a root job. [job-door.md](job-door.md)
 
 ## The lock, the address, the model, what fits
 

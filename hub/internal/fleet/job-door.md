@@ -1,31 +1,24 @@
 # The forwards and the job door
 
-Every `omp` the hub runs over SSH — a job round, a credential pull, a
-command run "with forwards" — gets two reverse forwards on the remote's
-loopback for the life of that connection: `8765` to a **vault proxy** for
-that host and `11435` to that connection's **job door**. The proxy is a
-loopback listener on the hub that accepts only this host's own bearer
-token (`hosts.vault_token`, minted at every credential delivery, emptied
-by **Revoke**) and swaps in the real one before passing the request to
-the vault. The door is a loopback `http.Server` on the hub serving exactly
-three things: the router (Ollama's paths, so `homedash/<model>` works),
-`GET /secrets/{name}` for that host's grants, and `POST /sudo` — the
-command in the body, checked by `gate.Check` and `gate.Privileged`, run
-as root through `sudo -n sh -c` on the same connection, its merged
-output returned with the exit code in a header, and every request
-recorded as a `sudo.run` or `sudo.refused` event and as a job event when
-the connection is a job's. `jobs.sudo` off answers every `/sudo` with
-403. The panel's listener is never forwarded, so a remote's agent has
-no route to the hub's API. `homedash-secret NAME` and `homedash-sudo …`
-are curls of the door. Before each omp run the provider cache is removed
-and `omp models` rebuilds it through the door, because omp resolves
-`--model` from that cache and never refreshes it when the pool gains a
-model.
+Every `omp` run over SSH (job round, credential pull, command "with forwards") gets two reverse forwards on the remote's loopback, for the connection's life:
+
+| Port | To | Serves |
+| --- | --- | --- |
+| `8765` | Vault proxy | Accepts only this host's `hosts.vault_token` (minted per delivery, emptied by **Revoke**), swaps in the real one |
+| `11435` | Job door | Router (Ollama paths) marked `X-HomeDash-Local-Only` — no peer answers a root agent; `GET /secrets/{name}` for this host's grants |
+
+- The panel's listener is never forwarded: no route to the hub's API.
+- `homedash-secret NAME` curls the door.
+- Before each omp run the provider cache is deleted and `omp models` rebuilds it through the door (omp never refreshes it when the pool gains a model).
 
 ## Held connections
 
-`Hold` keeps one SSH client per host for traffic that would otherwise
-dial on every use — a published service's connections — redialing when
-the kept one has died and dropping it when the host is removed. `Port`
-opens a `direct-tcpip` channel on that client to a port on the remote's
-loopback: this is a service's origin side.
+`Hold`: one SSH client per host for published services; redialed when dead, dropped on removal. `Port`: a `direct-tcpip` channel to the remote's loopback — the service's origin side.
+
+## The hold, around a root job
+
+- `ArmJob` (before every round, root): writes the hook (`gate.Hook`) and `/etc/homedash/fleet-addrs` (`hub.lan_addr`, the enroll URL's host, every other host's address).
+- `hold.sh`: rewrites the hub key file, the sshd drop-in, the `homedash` sudoers line if they differ; recreates the account (with `docker`); enables, starts, reloads sshd.
+- Run 1: the unit's `ExecStopPost` (`HoldStopPost`) — inline base64, beyond a job's edits and systemd's `$`/`%` expansion; runs on done, timeout, kill; needs no sudo; result → `/etc/homedash/hold-restored`.
+- Run 2: `CheckHold` over the round's connection; prints that file plus its own result.
+- Restored → `hold` job event + `host.hold_repaired`. Unfixable (sshd rejects its config, `AllowUsers` omits `homedash`) → `host.hold_broken`.

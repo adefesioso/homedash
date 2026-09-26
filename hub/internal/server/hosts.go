@@ -227,7 +227,7 @@ func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeFile is the CLI's door for a file on a host: the gate refuses SSH
-// config paths, as it does for a window's write_file.
+// config paths. A person's, never the hub agent's: it has no such tool.
 func (s *Server) writeFile(w http.ResponseWriter, r *http.Request) {
 	h := s.host(w, r)
 	if h == nil {
@@ -281,7 +281,8 @@ func (s *Server) revokeCredentials(w http.ResponseWriter, r *http.Request) {
 }
 
 // reprovision runs the enrollment layout again on a host: the accounts,
-// the key, the cage, the pinned agent. It takes minutes, so it runs in
+// the key, the hook, the pinned agent, and it removes an older layout's
+// cage and sudo door. It takes minutes, so it runs in
 // the background and ends as an event.
 func (s *Server) reprovision(w http.ResponseWriter, r *http.Request) {
 	h := s.host(w, r)
@@ -298,7 +299,7 @@ func (s *Server) reprovision(w http.ResponseWriter, r *http.Request) {
 
 // updateHostOmp runs omp's own updater on a host, against GitHub's
 // latest release — unlike reprovision, it leaves accounts, the key and
-// the cage alone. It takes a minute or two, so it runs in the background
+// the hook alone. It takes a minute or two, so it runs in the background
 // and ends as an event.
 func (s *Server) updateHostOmp(w http.ResponseWriter, r *http.Request) {
 	h := s.host(w, r)

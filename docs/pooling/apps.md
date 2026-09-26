@@ -47,9 +47,8 @@ saves the compose file only, never a stack's `.env`.
 
 **What a compose file may ask for is gated for an agent.** A job token, a
 session on the Agents tab or an outside assistant through MCP deploying a
-stack meets the same danger list [`homedash-sudo`](../running/safety.md)
-already refuses on a docker command line, read from the compose file
-instead: `privileged: true`, `pid: host`, `network_mode: host`, a
+stack meets a docker danger list, read from the compose file
+([the gate](../running/safety.md)): `privileged: true`, `pid: host`, `network_mode: host`, a
 `cap_add` of `SYS_ADMIN` or `ALL`, or a bind mount of `/` or the docker
 socket. Any of these is refused before the file ever reaches a remote. A
 person deploying from the panel or the CLI is not an agent and is not

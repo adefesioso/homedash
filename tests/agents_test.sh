@@ -9,21 +9,6 @@
 # provider, so no external API key is needed — docs/pooling/agents/README.md:
 # "the house's own pool is a provider like any other."
 
-_wait_job() { # _wait_job <tok> <id> -> prints final job JSON on stdout
-  local tok=$1 id=$2 i j state
-  for i in $(seq 1 40); do
-    j=$(hub_curl hub-a "$tok" "GET" "/api/jobs/$id" | hub_body)
-    state=$(echo "$j" | jq -r .state)
-    [ "$state" != "running" ] && { echo "$j"; return; }
-    sleep 5
-  done
-  echo "$j"
-}
-
-_start_job() { # _start_job <tok> <host> <text> -> id
-  hub_curl hub-a "$1" POST /api/jobs "$(jq -nc --arg h "$2" --arg t "$3" '{host:$h,text:$t}')" | hub_body | jq -r .id
-}
-
 _LAST_JOB=""
 
 test_agent_model_change_is_appended_to_the_rebuild_script() {

@@ -51,10 +51,9 @@ detail.
   endpoint, the model grid, what fits on each machine, and one placement
   decision per conversation.
 - [Agents](agents/README.md) — the seat the fleet is worked from: the
-  hub's agent hands jobs to each remote's own agent — unprivileged, caged
-  to its own machine, root only through one logged door — reads the
-  reports, keeps every host's rebuild script current, and brokers
-  credentials and secrets without any of them landing on a remote.
+  hub's agent only dispatches; each remote's agent is root on its own
+  machine and reports every change back, so rebuild scripts and the
+  catalog stay current; sessions can end in a proposal to the project.
 - [Notifications](notifications.md) — the one target every transition
   into or out of trouble is sent to.
 - [Mobile](mobile.md) — pairing an Android phone as a remote to puppeteer.

@@ -47,63 +47,6 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-func TestPrivileged(t *testing.T) {
-	ok := []string{
-		"apt-get install -y nginx",
-		"systemctl enable --now nginx",
-		"mkdir -p /srv/photos && chown homedash-agent:homedash-agent /srv/photos",
-		"mount /dev/sdb1 /mnt/photos",
-		"cp /home/homedash-agent/work/nginx.conf /etc/nginx/sites-available/photos",
-		"tee /etc/systemd/system/photos.service",
-		"docker run -d -v /srv/photos:/data nginx",
-		"chown homedash-agent /home/homedash-agent/x",
-	}
-	for _, c := range ok {
-		if err := Privileged(c); err != nil {
-			t.Errorf("Privileged(%q) = %v, want nil", c, err)
-		}
-	}
-	refused := map[string]string{
-		"bash -c 'id'":          "not a privileged program",
-		"python3 -c 'print(1)'": "not a privileged program",
-		"cp /tmp/k /etc/ssh/authorized_keys.d/homedash":            "protected path",
-		"tee /etc/sudoers.d/agent":                                 "protected path",
-		"echo x > /etc/sudoers.d/agent":                            "protected path",
-		"cat /etc/shadow":                                          "protected path",
-		"rm -rf /home/homedash/.ssh":                               "protected path",
-		"cp evil /usr/local/bin/homedash-sudo":                     "protected path",
-		"rm /home/homedash-agent/.omp/agent/hooks/pre/x":           "protected path",
-		"chmod 4755 /tmp/sh":                                       "setuid",
-		"chmod u+s /tmp/sh":                                        "setuid",
-		"install -m 4755 x /usr/bin/x":                             "setuid",
-		"usermod -aG sudo homedash-agent":                          "accounts",
-		"usermod -aG docker homedash-agent":                        "accounts",
-		"docker run --privileged x":                                "privileged container",
-		"docker run -v /:/host x":                                  "protected path",
-		"docker run --mount type=bind,source=/etc/ssh,target=/x x": "protected path",
-		"docker run -v /var/run/docker.sock:/s x":                  "protected path",
-		"mount --bind /tmp/x /etc/ssh":                             "protected path",
-		"nft delete table inet homedash-agent":                     "firewall",
-		"systemctl stop homedash-agent-cage":                       "firewall",
-		"chattr -i /etc/ssh/authorized_keys.d/homedash":            "not a privileged program",
-		"systemd-run id":                                           "not a privileged program",
-		"userdel homedash-agent":                                   "SSH access",
-		"reboot":                                                   "rebooting",
-		"make install":                                             "not a privileged program",
-		"dd if=/dev/zero of=/etc/ssh/x":                            "protected path",
-	}
-	for c, want := range refused {
-		err := Privileged(c)
-		if err == nil {
-			t.Errorf("Privileged(%q) = nil, want a refusal (%s)", c, want)
-			continue
-		}
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("Privileged(%q) = %v, want %q", c, err, want)
-		}
-	}
-}
-
 func TestComposeRefusal(t *testing.T) {
 	refused := map[string]string{
 		"services:\n  x:\n    image: a\n    privileged: true\n":                                                                       "privileged",
@@ -173,17 +116,11 @@ func TestSystemDisk(t *testing.T) {
 		if err := CheckOn(c, system); err != nil {
 			t.Errorf("wrongly refused on a data disk: %q: %v", c, err)
 		}
-		if err := PrivilegedOn(c, system); err != nil {
-			t.Errorf("door wrongly refused on a data disk: %q: %v", c, err)
-		}
 	}
 	// No machine in hand: every disk is the system disk, as before.
 	for _, c := range []string{"mkfs.ext4 /dev/sdb", "parted -s /dev/sdc print", "cat /dev/zero > /dev/sdb"} {
 		if err := Check(c); err == nil {
 			t.Errorf("not refused with no machine in hand: %q", c)
-		}
-		if err := PrivilegedOn(c, nil); err == nil {
-			t.Errorf("door not refused with no machine in hand: %q", c)
 		}
 	}
 	// A partition of a system disk under nvme naming.

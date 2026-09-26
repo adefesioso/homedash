@@ -105,18 +105,21 @@ else
   printf ',"lock":null'
 fi
 
-# The agent: version, configured model, snapshot age; whether the job
-# account and its cage exist. The agent's state is under its own account,
+# The agent: version, configured model, snapshot age; whether its home's
+# account exists; and whether the hub's hold is whole — its key, the sshd
+# drop-in naming it, its account's sudoers line. The agent's state is
 # readable only as root.
 omp=$(command -v omp || ls /usr/local/bin/omp 2>/dev/null)
 if [ -n "$omp" ]; then
   v=$("$omp" --version 2>/dev/null | sed 's#^omp/##')
   ah=/home/homedash-agent
   account=false; getent passwd homedash-agent >/dev/null 2>&1 && account=true
-  cage=false; sudo -n nft list table inet homedash-agent >/dev/null 2>&1 && cage=true
+  hold=false
+  sudo -n test -s /etc/ssh/authorized_keys.d/homedash && sudo -n test -f /etc/ssh/sshd_config.d/10-homedash-keys.conf &&
+    sudo -n grep -qs '^homedash ALL=(ALL) NOPASSWD:ALL' /etc/sudoers.d/homedash && hold=true
   model=$(sudo -n awk '/^modelRoles:/{f=1;next} f&&/^  default:/{print $2;exit} /^[^ ]/{f=0}' "$ah/.omp/agent/config.yml" 2>/dev/null)
   if age=$(sudo -n stat -c %Y "$ah/.omp/cache/auth-broker-snapshot.enc" 2>/dev/null); then age=$(( $(date +%s) - age )); else age=null; fi
-  printf ',"agent":{"version":"%s","model":"%s","snapshotAge":%s,"account":%s,"cage":%s}' "$(esc "$v")" "$(esc "$model")" "$age" "$account" "$cage"
+  printf ',"agent":{"version":"%s","model":"%s","snapshotAge":%s,"account":%s,"hold":%s}' "$(esc "$v")" "$(esc "$model")" "$age" "$account" "$hold"
 else
   printf ',"agent":null'
 fi

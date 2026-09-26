@@ -26,7 +26,7 @@ import (
 
 // Handler serves the MCP protocol over streamable HTTP. Stateless: every
 // request stands alone, which is all the tools below need.
-func Handler(st *store.Store, fl *fleet.Fleet, jobs *agent.Jobs, ap *apps.Apps, sto *storage.Storage, version string) http.Handler {
+func Handler(st *store.Store, fl *fleet.Fleet, jobs *agent.Jobs, ap *apps.Apps, sto *storage.Storage, prop *agent.Proposals, version string) http.Handler {
 	srv := sdk.NewServer(&sdk.Implementation{Name: "homedash", Version: version}, nil)
 	addTool(srv, &sdk.Tool{
 		Name:        "list_events",
@@ -47,7 +47,8 @@ func Handler(st *store.Store, fl *fleet.Fleet, jobs *agent.Jobs, ap *apps.Apps, 
 	deviceTools(srv, st)
 	jobTools(srv, st, jobs)
 	appTools(srv, st, ap, sto.Gateway)
-	storageTools(srv, sto)
+	storageTools(srv, st, sto)
+	proposalTools(srv, prop)
 	return sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return srv },
 		&sdk.StreamableHTTPOptions{Stateless: true})
 }

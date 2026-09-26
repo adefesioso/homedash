@@ -84,14 +84,30 @@ hub_status() { head -1; }
 hub_body() { tail -n +2; }
 
 # agent_run <hub> <token> <host> <command> — runs <command> on <host> as
-# the job account, homedash-agent, through the executor with the door
-# forwards up, exactly the way a job's own shell sees the machine
-# (docs/running/safety.md, docs/pooling/agents/README.md). Prints
-# hub_curl's combined output; stdout ends with "exit=<rc>".
+# a job does: root, with the agent's home, through the executor with the
+# door forwards up (docs/pooling/agents/jobs.md). Prints hub_curl's
+# combined output; stdout ends with "exit=<rc>".
 agent_run() {
   local hub=$1 tok=$2 host=$3 cmd=$4
   hub_curl "$hub" "$tok" POST "/api/hosts/$host/run" \
-    "$(jq -nc --arg c "sudo -n -u homedash-agent sh -c $(printf '%q' "$cmd") 2>&1; echo exit=\$?" '{command:$c,timeoutSeconds:60,forwards:true}')"
+    "$(jq -nc --arg c "sudo -n env HOME=/home/homedash-agent sh -c $(printf '%q' "$cmd") 2>&1; echo exit=\$?" '{command:$c,timeoutSeconds:60,forwards:true}')"
+}
+
+# _start_job / _wait_job — a job through the API, and its final JSON once
+# it is past running (docs/pooling/agents/jobs.md).
+_wait_job() { # _wait_job <tok> <id> -> prints final job JSON on stdout
+  local tok=$1 id=$2 i j state
+  for i in $(seq 1 40); do
+    j=$(hub_curl hub-a "$tok" "GET" "/api/jobs/$id" | hub_body)
+    state=$(echo "$j" | jq -r .state)
+    [ "$state" != "running" ] && { echo "$j"; return; }
+    sleep 5
+  done
+  echo "$j"
+}
+
+_start_job() { # _start_job <tok> <host> <text> -> id
+  hub_curl hub-a "$1" POST /api/jobs "$(jq -nc --arg h "$2" --arg t "$3" '{host:$h,text:$t}')" | hub_body | jq -r .id
 }
 
 # hub_events <hub> <token> <kind> — the messages of recent events of one

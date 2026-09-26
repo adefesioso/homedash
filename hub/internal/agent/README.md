@@ -39,7 +39,10 @@ scrollback kept after the process ends. [windows.md](windows.md)
 
 ## Remote jobs
 
-A job is one SSH round: snapshot, `omp` run as `homedash-agent` under
-`systemd-run` with a locked-down unit and only the paths it needs,
-events streamed back, retention, rollback, and a kill switch.
-[jobs.md](jobs.md)
+One SSH round: snapshot, hook armed, `omp` as root, events streamed, hold
+restored, change report parsed; rollback, kill. [jobs.md](jobs.md)
+
+## Proposals
+
+`Proposals.File`: one Gitea issue, redacted, deduplicated, capped daily.
+[proposals](../../../docs/pooling/agents/proposals.md)

@@ -326,8 +326,8 @@ func (a *Apps) Deploy(ctx context.Context, h *store.Host, name, compose, env str
 			return out, "", fmt.Errorf("setup command failed: %s: %w", cmd, err)
 		}
 	}
-	// The compose gate (A-1): the same danger list Privileged refuses a
-	// docker command line for, read from the compose file's content. An
+	// The compose gate (A-1): a docker danger list read from the compose
+	// file's content. An
 	// agent is refused outright; a person deploying from the panel or
 	// the CLI is warned but not stopped — see docs/running/safety.md.
 	if reason := gate.ComposeRefusal(compose); reason != "" {

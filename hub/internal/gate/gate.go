@@ -4,8 +4,8 @@
 // the gate (every operation names a host, and the hub is not one) lives
 // in the store's host resolver; this is the other half.
 //
-// The same list ships to every remote as an omp hook, so a remote's agent
-// working on its own machine meets it too.
+// The same list, plus the hub's hold and the fleet's addresses, ships to
+// every remote as an omp hook, so a remote's root agent meets it too.
 package gate
 
 import (
@@ -32,13 +32,12 @@ func IsRefusal(err error) bool {
 // environment assignments stripped — and says why it is refused, or "".
 type rule func(prog string, args []string) string
 
-// AgentAccount is the account a job runs as on a remote: no sudo, no
-// privilege but the docker group. The cage is the nftables table on its
-// uid and the unit that installs it at boot.
+// AgentAccount owns the agent's state on a remote (its home, AgentHome,
+// holds omp's config, credentials and sessions). A job runs as root with
+// that home; the account itself does nothing.
 const (
 	AgentAccount = "homedash-agent"
-	cageTable    = "homedash-agent"
-	cageUnit     = "homedash-agent-cage"
+	AgentHome    = "/home/" + AgentAccount
 )
 
 // systemPaths are what a recursive delete may never name.
@@ -56,8 +55,7 @@ var rules = []rule{
 		case p == "ufw" && len(a) > 0 && (a[0] == "disable" || a[0] == "reset"),
 			p == "iptables" && has(a, "-F", "--flush"),
 			p == "nft" && strings.Join(a, " ") == "flush ruleset",
-			p == "nft" && len(a) > 1 && has(a[:1], "delete", "flush") && has(a, cageTable),
-			p == "systemctl" && len(a) > 1 && has(a[:1], "stop", "disable", "mask") && has(a[1:], "ufw", "firewalld", "nftables", cageUnit, cageUnit+".service"):
+			p == "systemctl" && len(a) > 1 && has(a[:1], "stop", "disable", "mask") && has(a[1:], "ufw", "firewalld", "nftables"):
 			return "switching off the firewall"
 		}
 		return ""
@@ -267,197 +265,16 @@ func Reasons() []string {
 	}
 }
 
-// --- the privileged allowlist ------------------------------------------
-
-// ProtectedPaths are what no command through the sudo door may name: the
-// hub's hold on the machine. An entry ending in "/" is a tree; one ending
-// in "*" is a raw prefix; one with no leading "/" is a filename fragment;
-// anything else is that path exactly.
-var ProtectedPaths = []string{
-	"/etc/ssh/", "authorized_keys", "/etc/sudoers*", "/etc/pam.d/", "/etc/passwd", "/etc/shadow",
-	"/etc/group", "/etc/gshadow", "/etc/subuid", "/etc/subgid", "/etc/homedash/", "/etc/nftables*",
-	"/etc/systemd/system/" + cageUnit + "*", "/root/", "/home/homedash/", "/usr/local/bin/homedash-*",
-	"/usr/local/bin/omp", "/home/" + AgentAccount + "/.omp/agent/hooks/",
-}
-
-// allowed are the programs the sudo door will run. Everything else is a
-// shell, an interpreter, a privilege tool, or simply not something a job
-// has a reason to be root for.
-var allowed = map[string]bool{
-	"apt-get": true, "apt": true, "apt-cache": true, "apt-mark": true, "dpkg": true, "dpkg-query": true,
-	"dpkg-reconfigure": true, "add-apt-repository": true, "update-alternatives": true,
-	"systemctl": true, "journalctl": true, "docker": true,
-	"mount": true, "umount": true, "findmnt": true, "blkid": true, "lsblk": true, "df": true, "du": true,
-	"partprobe": true, "swapon": true, "swapoff": true, "e2label": true, "e2fsck": true, "btrfs": true,
-	"udevadm": true, "blockdev": true, "pvs": true, "vgs": true, "lvs": true, "vgchange": true,
-	"lvchange": true, "vgextend": true, "lvextend": true,
-	"mkdir": true, "rmdir": true, "chown": true, "chgrp": true, "chmod": true, "cp": true, "mv": true,
-	"ln": true, "install": true, "tee": true, "rm": true, "cat": true, "ls": true, "stat": true,
-	"test": true, "touch": true, "rsync": true, "tar": true, "unzip": true, "gzip": true, "gunzip": true,
-	"curl": true, "wget": true, "git": true, "sed": true, "grep": true, "head": true, "tail": true,
-	"true": true, "false": true, "echo": true, "printf": true, "which": true, "id": true,
-	"ollama": true, "usermod": true, "useradd": true, "groupadd": true, "getent": true,
-}
-
-// refusedByName are refused through the door whatever their arguments.
-var refusedByName = map[string]bool{
-	"sh": true, "bash": true, "dash": true, "zsh": true, "ksh": true, "fish": true, "python": true,
-	"python3": true, "perl": true, "ruby": true, "node": true, "bun": true, "deno": true, "php": true,
-	"lua": true, "awk": true, "gawk": true, "eval": true, "xargs": true, "find": true, "su": true,
-	"sudo": true, "doas": true, "pkexec": true, "visudo": true, "passwd": true, "chpasswd": true,
-	"userdel": true, "deluser": true, "adduser": true, "gpasswd": true, "chattr": true, "setcap": true,
-	"nsenter": true, "chroot": true, "unshare": true, "systemd-run": true, "machinectl": true,
-	"nft": true, "iptables": true, "ip6tables": true, "ufw": true, "crontab": true, "at": true,
-	"sshd": true, "ssh": true, "ssh-keygen": true, "make": true, "pip": true, "pip3": true, "npm": true, "npx": true,
-}
-
-var (
-	anyRedirect = regexp.MustCompile(`>>?\s*(\S+)`)
-	setuidMode  = regexp.MustCompile(`^[0-7]?[4-7][0-7]{3}$|[ugoa]*\+[rwx]*s`)
-)
-
-// Privileged is the second gate, for a command a job asks the hub to run
-// as root through the sudo door. Check first; then every program must be
-// allowed, and nothing may name a protected path. PrivilegedOn is the
-// same for a known machine, as CheckOn is to Check.
-func Privileged(command string) error { return PrivilegedOn(command, nil) }
-
-func PrivilegedOn(command string, system []string) error {
-	if err := CheckOn(command, system); err != nil {
-		return err
-	}
-	for _, m := range anyRedirect.FindAllStringSubmatch(command, -1) {
-		if protected(m[1]) {
-			return &Refusal{Reason: "naming a protected path: " + short(command)}
-		}
-	}
-	for _, seg := range segment.Split(command, -1) {
-		words := strings.Fields(seg)
-		for len(words) > 0 && (wrappers[words[0]] || assignRe.MatchString(words[0])) {
-			words = words[1:]
-		}
-		if len(words) == 0 {
-			continue
-		}
-		prog := words[0]
-		if i := strings.LastIndex(prog, "/"); i >= 0 {
-			prog = prog[i+1:]
-		}
-		args := words[1:]
-		switch {
-		case refusedByName[prog]:
-			return &Refusal{Reason: "not a privileged program: " + prog + ": " + short(command)}
-		case !allowed[prog] && !diskTools[prog] && !strings.HasPrefix(prog, "mkfs") && !strings.HasPrefix(prog, "fsck") && !strings.HasPrefix(prog, "xfs_"):
-			return &Refusal{Reason: "not on the privileged allowlist: " + prog + ": " + short(command)}
-		}
-		for _, x := range args {
-			if protected(x) {
-				return &Refusal{Reason: "naming a protected path: " + short(command)}
-			}
-		}
-		switch prog {
-		case "chmod", "install":
-			for _, x := range args {
-				if setuidMode.MatchString(x) {
-					return &Refusal{Reason: "a setuid mode: " + short(command)}
-				}
-			}
-		case "usermod", "useradd":
-			if has(args, "-G", "--groups", "-aG", "-g", "--gid", "-o", "--non-unique") && has(args, "sudo", "docker", "root", "homedash") || has(args, "-u", "--uid", "-p", "--password", "-s", "--shell") && has(args, "homedash", AgentAccount) {
-				return &Refusal{Reason: "changing the hub's accounts or a privileged group: " + short(command)}
-			}
-			if has(args, "homedash", AgentAccount) {
-				return &Refusal{Reason: "changing the hub's accounts: " + short(command)}
-			}
-		case "docker":
-			for _, x := range args {
-				switch {
-				case x == "--privileged", strings.HasPrefix(x, "--pid="), strings.HasPrefix(x, "--userns="),
-					strings.HasPrefix(x, "--cap-add"), strings.HasPrefix(x, "--security-opt"), x == "--pid", x == "--cap-add", x == "--security-opt", x == "--userns":
-					return &Refusal{Reason: "a privileged container: " + short(command)}
-				}
-			}
-			for i, x := range args {
-				var src string
-				switch {
-				case x == "-v" || x == "--volume" || x == "--mount":
-					if i+1 < len(args) {
-						src = args[i+1]
-					}
-				case strings.HasPrefix(x, "-v=") || strings.HasPrefix(x, "--volume=") || strings.HasPrefix(x, "--mount="):
-					src = x[strings.Index(x, "=")+1:]
-				}
-				if src == "" {
-					continue
-				}
-				if strings.HasPrefix(src, "type=") {
-					if i := strings.Index(src, "source="); i >= 0 {
-						src = src[i+len("source="):]
-					} else if i := strings.Index(src, "src="); i >= 0 {
-						src = src[i+len("src="):]
-					}
-				}
-				src = strings.SplitN(src, ",", 2)[0]
-				src = strings.SplitN(src, ":", 2)[0]
-				if src == "/" || protected(src) || strings.HasPrefix(src, "/etc") || strings.HasPrefix(src, "/var/run/docker.sock") || strings.HasPrefix(src, "/run/docker.sock") {
-					return &Refusal{Reason: "a container mounting a protected path: " + short(command)}
-				}
-			}
-		case "mount":
-			for _, x := range args {
-				if x == "--bind" || x == "--rbind" || x == "-B" {
-					if len(args) > 0 && protected(args[len(args)-1]) {
-						return &Refusal{Reason: "naming a protected path: " + short(command)}
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// protected reports whether a word names a protected path, on its own or
-// after an "=" (dd's of=, docker's source=).
-func protected(word string) bool {
-	w := strings.Trim(word, `"'`)
-	if i := strings.LastIndex(w, "="); i >= 0 && i+1 < len(w) && w[i+1] == '/' {
-		w = w[i+1:]
-	}
-	for _, p := range ProtectedPaths {
-		switch {
-		case strings.HasSuffix(p, "/"):
-			if w == strings.TrimSuffix(p, "/") || strings.HasPrefix(w, p) {
-				return true
-			}
-		case strings.HasSuffix(p, "*"):
-			if strings.HasPrefix(w, strings.TrimSuffix(p, "*")) {
-				return true
-			}
-		case !strings.HasPrefix(p, "/"):
-			if strings.Contains(w, p) {
-				return true
-			}
-		default:
-			if w == p {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// Hook is the same list as an omp hook, installed on every remote by
-// enrollment.
+// Hook is the same list as an omp hook, written to every remote by
+// enrollment and again before every job round.
 //
 //go:embed hook.ts
 var Hook string
 
 // --- the compose gate ---------------------------------------------------
 
-// composeReasons is the docker danger list from Privileged's "docker"
-// case, read from a compose file's YAML instead of a command line's
-// flags: the same five stanzas, because a compose file is just another
-// way of writing the docker run Privileged already refuses.
+// The compose gate: a docker danger list read from a compose file's YAML,
+// for a stack an agent deploys from the hub.
 var (
 	composePrivileged = regexp.MustCompile(`(?im)^\s*privileged\s*:\s*["']?true["']?\s*$`)
 	composePIDHost    = regexp.MustCompile(`(?im)^\s*pid\s*:\s*["']?host["']?\s*$`)
@@ -472,7 +289,7 @@ var (
 // agent's deploy_stack may not bring up, because nothing else inspects a
 // compose file's content before it lands on a remote and comes up as a
 // container. "" when the compose is fine. Deliberately textual, like
-// Check and Privileged: a compose file is YAML, but line-by-line
+// Check: a compose file is YAML, but line-by-line
 // patterns are enough for the handful of stanzas that matter and don't
 // need a parser to keep in sync with docker compose's own schema.
 func ComposeRefusal(compose string) string {

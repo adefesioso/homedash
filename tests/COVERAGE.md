@@ -18,7 +18,7 @@ is written; a claim that is not in this file is one nobody has read for.
 | A rebuilt or replaced box is refused later as a key mismatch | | needs a remote whose host key changes; no spare VM |
 | New remote can rebuild from a named host, and refuses a host that does not exist | yes (up to the code) | the rebuild running on the new machine needs the fresh VM above |
 | A Pi-class box enrolls and pools but cannot run the agent | yes | |
-| No HomeDash agent or binary on a remote; the cage is a oneshot; nothing of HomeDash's runs or listens there | yes | |
+| No HomeDash agent or binary on a remote; nothing of HomeDash's runs or listens there | yes | |
 | A joined host starts unknown, then reads Online/Offline/Key mismatch from a real connection | Online only | Offline is exercised in `storage_test.sh` (the VM is stopped there); Key mismatch needs the key change above |
 | Each sweep keeps free space per mount, memory, load; metrics are readable | yes | the sparkline is the panel's; `ui/` does not yet open a card |
 | The hourly rollup reads only unrolled hours and never rewrites one | unit (`TestRollupBounded`) | |
@@ -254,8 +254,12 @@ PR 2 added: an unknown `/api` path answers 404, never the panel's HTML.
 | An ordinary command runs; the list is published at the API; every refusal is an event | yes | |
 | The hub is not a host the gate can name; nothing reaches SSH without a token | yes | |
 | A file write goes through the same gate | yes | |
-| The agent account has no sudo, cannot touch the hub's hold, is caged from the house | yes | |
-| The agent's unit: system read-only, its home writable | yes (the unit shape the hub uses, run the same way) | task cap, private /tmp, wall clock |
-| `homedash-sudo` runs an allowed command as root, refuses protected paths, shells, privileged containers; every use is an event; `jobs.sudo` off closes the door | yes | |
+| A job's shell is root with the agent's home; an older layout's cage and `homedash-sudo` are gone | yes | |
+| The door serves the router, not root, not the hub's API | yes | |
+| A job round puts back the hub's hold and records `host.hold_repaired` | yes (the sudoers line) | a job that breaks sudo outright, or times out, relies on the unit's own stop-post; exercised only through the ordinary end |
+| The hook refuses the hold, the hub's and other remotes' addresses | | needs a model that tries; `hook.ts` is not driven by this suite |
+| The hub's agent has no tool that runs a command or writes a file | | `mcp_test.go` asserts it; the MCP tools are not driven by this suite |
+| A change report is parsed onto the job | | the lab's model is too small to follow the format; `jobs_test.go` covers parsing |
+| A proposal is redacted, deduplicated, capped | | needs a Gitea; `proposals_test.go` covers it against a fake |
 | Host key pinning refuses a changed key | | see hosts.md |
 | Roll back undoes a job | see agents | |

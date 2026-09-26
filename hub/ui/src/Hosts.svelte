@@ -96,7 +96,7 @@
   // click (H-15). Events carries the actual result; this is just "it
   // started" until the next load clears it.
   async function reprovision(h) {
-    if (!confirm(`Re-provision ${h.name}? The enrollment layout runs again over SSH: accounts, key, cage, agent. Takes a few minutes; ends as an event.`)) return;
+    if (!confirm(`Re-provision ${h.name}? The enrollment layout runs again over SSH: accounts, key, hook, agent; removes an older layout's cage. Takes a few minutes; ends as an event.`)) return;
     note = { ...note, [h.id]: 're-provisioning… ends as an event' };
     await act(h, () => post(`/hosts/${h.id}/reprovision`));
     setTimeout(() => { note = { ...note, [h.id]: '' }; }, 180_000);
@@ -237,7 +237,7 @@
               {:else if f.agent.snapshotAge == null}<span class="pill">no credentials yet</span>
               {:else}<span class="pill ok">credentials {Math.round(f.agent.snapshotAge / 60)}m old</span>{/if}
               {#if f.memTotal && f.memTotal < 1400 * 1048576}<span class="pill bad">too little memory for the agent</span>{/if}
-              {#if !f.agent.account}<span class="pill bad">no agent account: re-provision</span>{:else if !f.agent.cage}<span class="pill bad">network cage down</span>{/if}
+              {#if !f.agent.account}<span class="pill bad">no agent account: re-provision</span>{:else if f.agent.hold === false}<span class="pill bad">hub's hold changed: re-provision</span>{/if}
             {:else}
               <span class="pill">no agent reported</span>
             {/if}

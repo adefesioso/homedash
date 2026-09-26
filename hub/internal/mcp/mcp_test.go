@@ -25,7 +25,8 @@ func TestOutputSchemasAcceptRawJSON(t *testing.T) {
 	deviceTools(srv, nil)
 	jobTools(srv, nil, nil)
 	appTools(srv, nil, nil, nil)
-	storageTools(srv, nil)
+	storageTools(srv, nil, nil)
+	proposalTools(srv, nil)
 
 	ctx := context.Background()
 	ct, stt := sdk.NewInMemoryTransports()
@@ -40,6 +41,23 @@ func TestOutputSchemasAcceptRawJSON(t *testing.T) {
 	tools, err := cs.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// The hub's agent has no hands: nothing that runs a command or writes
+	// a file on a machine. Work on a machine is a job.
+	names := map[string]bool{}
+	for _, tool := range tools.Tools {
+		names[tool.Name] = true
+	}
+	for _, n := range []string{"run_command", "write_file"} {
+		if names[n] {
+			t.Errorf("%s is registered; the hub's agent dispatches jobs instead", n)
+		}
+	}
+	for _, n := range []string{"start_job", "workspace_create", "workspace_member", "cluster_create", "cluster_add_member", "propose"} {
+		if !names[n] {
+			t.Errorf("%s is not registered", n)
+		}
 	}
 
 	var hosts *jsonschema.Schema

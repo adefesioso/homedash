@@ -184,7 +184,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/agents/sessions/{id}/pty", s.sessionPTY)
 	mux.HandleFunc("GET /api/agents/sessions/{id}/history", s.sessionHistory)
 	// The omp sessions' tools; a workstation uses the CLI on the API above.
-	mux.Handle("/api/mcp", mcp.Handler(st, s.Fleet, s.Jobs, s.Apps, s.Storage, version))
+	mux.Handle("/api/mcp", mcp.Handler(st, s.Fleet, s.Jobs, s.Apps, s.Storage, &agent.Proposals{Store: st, Notify: s.Notify, Version: version}, version))
 	// Every route above is more specific than this and wins regardless of
 	// registration order; anything left under /api/ is a path nothing
 	// handles and must say so in plain text, never the panel's index.html
@@ -252,7 +252,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 
 // settingKeys is the whole of what the panel may read or write here; a
 // key outside it is refused rather than stored.
-var settingKeys = []string{"agent.default_model", "agent.remote_model", "agent.rounds", "agent.rules", "jobs.retention", "jobs.timeout", "jobs.sudo", "jobs.memory_max", "jobs.cpu_quota", "notify.target", "notify.disk_percent", "network.scan_minutes", "network.forget_days", "hub.lan_addr", "router.queue", "router.queue_wait", "space.name", "space.enabled", "space.serve", "space.unknown", "space.default_concurrent", "space.default_per_hour", "space.ceiling", "space.per_hour", "space.connections", "space.peer_connections", "space.peer_kbps", "space.hub_name", "space.network", "space.bootstrap", "space.psk", "space.reachable", "space.port", "auth.rpid", "auth.origins"}
+var settingKeys = []string{"agent.default_model", "agent.remote_model", "agent.rounds", "agent.rules", "jobs.retention", "jobs.timeout", "jobs.memory_max", "jobs.cpu_quota", "notify.target", "notify.disk_percent", "network.scan_minutes", "network.forget_days", "hub.lan_addr", "router.queue", "router.queue_wait", "space.name", "space.enabled", "space.serve", "space.unknown", "space.default_concurrent", "space.default_per_hour", "space.ceiling", "space.per_hour", "space.connections", "space.peer_connections", "space.peer_kbps", "space.hub_name", "space.network", "space.bootstrap", "space.psk", "space.reachable", "space.port", "auth.rpid", "auth.origins", "proposals.repo", "proposals.token", "proposals.daily"}
 
 // boolSettingKeys are the checkboxes in the Space section of Settings;
 // whatever a caller sends ("1", "on", "true" — settingBool in
@@ -288,10 +288,17 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "settings unavailable", http.StatusInternalServerError)
 			return
 		}
+		if k == "proposals.token" && v != "" {
+			v = tokenMask
+		}
 		out[k] = v
 	}
 	writeJSON(w, out)
 }
+
+// tokenMask stands in for a set proposals.token on read: the token goes to
+// Gitea and nowhere else, the panel included. Writing it back is no change.
+const tokenMask = "••••••••"
 
 func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	var in map[string]string
@@ -305,6 +312,9 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v = strings.TrimSpace(v)
+		if k == "proposals.token" && v == tokenMask {
+			continue
+		}
 		if (k == "agent.default_model" || k == "agent.remote_model") && !validAgentModel(v) {
 			http.Error(w, k+": blank, or provider/model such as anthropic/claude-sonnet-5 or homedash/qwen2.5:3b", http.StatusBadRequest)
 			return

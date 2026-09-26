@@ -623,7 +623,7 @@ func init() {
 			fmt.Printf("job %s on %s: %s\n", str(m, "id"), str(m, "host"), str(m, "snapshot"))
 		})
 	}})
-	add(command{"reprovision", "HOST", "run the enrollment layout again on a host: accounts, key, cage, agent", func(ctx context.Context, c *Client, args []string, j bool) error {
+	add(command{"reprovision", "HOST", "run the enrollment layout again on a host: accounts, key, hook, agent", func(ctx context.Context, c *Client, args []string, j bool) error {
 		if err := need(args, 1, "reprovision HOST"); err != nil {
 			return err
 		}

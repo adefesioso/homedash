@@ -68,9 +68,9 @@ they are. The hub's agent still directs; what it no longer has to do is
 relay.
 
 Pointing a job at a workspace is a matter of naming its path as the
-working directory — though a [job](agents/jobs.md#a-job) on a member
-can write every workspace it is a member of, and a job on the gateway
-the whole cluster, wherever it started. Jobs on separate remotes can run
+working directory. The hub's agent creates and shares workspaces and
+pools disks jobs formatted; a [job](agents/jobs.md#sharing-between-remotes)
+never mounts another remote. Jobs on separate remotes can run
 at once on the same workspace, and a job that follows another finds what
 it left. The
 cluster's rules carry over unchanged: a file lives on one member, a
@@ -81,4 +81,5 @@ cluster's gateway shares that directory with exactly the remotes you
 named, and nothing else on the cluster. Removing a remote from the
 workspace closes that share; the files stay. A workspace never crosses a
 [space](../sharing/README.md) — a job from a peer runs on its own disk.
-Workspaces are made and edited on the Storage tab, under their cluster.
+Workspaces are made and edited on the Storage tab, under their cluster,
+or by the hub's agent.

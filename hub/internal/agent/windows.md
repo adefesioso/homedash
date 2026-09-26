@@ -13,14 +13,11 @@ has ended stays in the list as history. After a hub restart every window
 is history (`EndAllWindows`) with no scrollback — the process took its
 buffer with it — its session file still on disk.
 
-`AGENTS.md` says what the agent is, that its tools are the fleet, that
-work goes to a remote as a job by default and `run_command`/`write_file`
-are for looking (or for the three cases a job cannot cover: a host
-without an agent, the house's network, one root command past
-`homedash-sudo`), what a job may write and reach so its instructions
-are written around those limits, how a
-job is given and read, that a workspace path can be a job's working
-directory, that the catalog is where a deploy starts and where a stack
+`AGENTS.md` says: it dispatches, no tool acts on a machine; remotes are
+root on themselves, never on the hold, the hub or each other; how a job
+is given and read; remotes share files only through clusters and
+workspaces it sets up; change reports fold into the rebuild script and
+catalog; a session may end in one proposal; that the catalog is where a deploy starts and where a stack
 that worked is saved, and that after each report it updates that host's
 rebuild script — small data inline as heredocs, larger data named at the top as
 what the script can't recreate.

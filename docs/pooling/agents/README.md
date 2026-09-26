@@ -1,50 +1,26 @@
 # Working the fleet with agents
 
-*The panel shows the whole house and you still do the work on it one SSH
-session at a time. Describing a change — "move the photo library to the
-new disk and repoint Immich at it" — is faster than performing it, and
-performing it on six machines is an evening.*
+*Describing a change is faster than performing it; performing it on six machines, one SSH session each, is an evening.*
 
-Every enrolled remote carries a coding agent —
-[oh-my-pi](https://github.com/can1357/oh-my-pi), `omp`, installed by
-enrollment — and the hub carries one too. The one on the hub is the one
-you talk to. It sees the fleet; the ones on the remotes see their own
-machine. You describe the outcome once; the hub's agent turns it into
-instructions for each remote's agent, the remotes do the work on
-themselves, and the hub's agent reads what came back.
+Every remote and the hub carry [`omp`](https://github.com/can1357/oh-my-pi). You talk to the hub's agent; it **dispatches**. Each remote's agent is **root on its own machine**, nothing else, and reports what changed.
 
-## The concepts
+| Concept | Is |
+| --- | --- |
+| Session | A named `omp` terminal on the hub, where you talk to the hub's agent |
+| Job | Host + directory + text for one remote's agent, run as root, ending in a report |
+| Change report | The report's structured part: packages, services, files, mounts, stacks, catalog notes, a proposal |
+| Round | One job turn: done, or a correction; capped |
+| Hub's hold | sshd, the hub's key, its account's sudo; restored after every round |
+| Model | Per remote: fleet default or card override, the house's pool included |
+| Rebuild script | Every change report folded into one script per host |
+| Proposal | One issue on the project, filed by the hub's agent |
 
-- **A session** is a terminal on the hub, running `omp`, where you talk
-  to the hub's agent — named with a passphrase, listed live or finished.
-- **A job** is instructions for one remote's own agent — a host, a
-  working directory, and the text — run under a locked-down account and
-  ending in a report.
-- **A round** is one job turn: the hub's agent reads the report and
-  either calls it done or sends a correction, capped before it waits
-  for you.
-- **A model** is set per remote — a fleet default, or a card's own
-  override, including the house's own GPU pool as a provider.
-- **The rebuild script** is the standing record every job's report gets
-  folded into, so a remote can be recreated from a fresh Debian.
+## Where each lives
 
-## What it does
-
-- [Sessions](sessions.md) — the Agents tab: named terminal sessions on
-  the hub, reattachable, kept live or finished, that are also the log.
-- [Jobs](jobs.md) — what the hub's agent may do directly versus send as
-  a job, the job's own locked-down account and its three writable
-  places, root through `homedash-sudo`, the correction loop, snapshots
-  and rollback, and re-provisioning a remote enrolled before this layout.
-- [Models and providers](models.md) — the fleet default, per-remote
-  overrides, and a connected peer's models in the same picker.
-- [Where the logs live](logs.md) — the remote's own session file and the
-  hub's database copy of every event and report.
-- [Credentials and secrets](credentials.md) — a job needs provider logins
-  and the house's tokens, and the only places they could otherwise live
-  are a remote's disk or your prompt. The hub is the vault; a remote gets
-  a short-lived credential or a named secret for the length of a job.
-- [What a remote can be rebuilt from](rebuild.md) — a remote is the sum
-  of everything ever done to it, and when its disk dies the only record
-  is your memory. One shell script per host, folded from every job's
-  report, takes a fresh Debian back to this machine.
+- [Sessions](sessions.md) — the Agents tab; sessions are also the log.
+- [Jobs](jobs.md) — dispatch, root remotes, the three limits, change report, loop, rollback, kill.
+- [Models](models.md) — defaults, overrides; a peer's model never drives a job.
+- [Logs](logs.md) — the remote's session file and the hub's copy of every event.
+- [Credentials and secrets](credentials.md) — the hub is the vault; a remote gets a short-lived credential or a named secret for one job.
+- [Rebuild script](rebuild.md) — a dead disk's only record is your memory; the script takes a fresh Debian back to the machine.
+- [Proposals](proposals.md) — rough edges reach the project as one redacted, capped issue.

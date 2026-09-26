@@ -21,7 +21,7 @@ packages that own the behaviour document the meaning of their tables:
 
 | File | Tables | Owner |
 | --- | --- | --- |
-| `store.go` | `events`, `settings`, `windows`, `jobs`, `job_events` | [server](../server/README.md), [agent](../agent/README.md) |
+| `store.go` | `events`, `settings`, `windows`, `jobs`, `job_events`, `proposals` | [server](../server/README.md), [agent](../agent/README.md) |
 | `hosts.go` | `hosts`, `enroll_codes`, `metrics`, `metrics_hourly` | [fleet](../fleet/README.md) |
 | `secrets.go` | `secrets` | [fleet](../fleet/README.md#secrets) |
 | `tasks.go` | `tasks`, `task_runs`, `catalog` | [tasks](../tasks/README.md), [apps](../apps/README.md) |

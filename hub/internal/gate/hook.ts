@@ -1,23 +1,28 @@
-// HomeDash's refused-command list, as an omp hook. Installed by enrollment,
-// root-owned, at the agent account's ~/.omp/agent/hooks/pre/, so the agent
-// working on this machine on the hub's instructions meets the same gate
-// the hub applies at its API. The logic mirrors internal/gate/gate.go:
-// split into simple commands, strip wrappers, refuse by program and
-// arguments; and for every other tool, refuse a path under the hub's hold
-// on the machine. The account has no privilege to do these things anyway;
-// the hook is what makes the refusal visible.
-const PROTECTED = ["/etc/ssh/", "authorized_keys", "/etc/sudoers*", "/etc/pam.d/", "/etc/passwd", "/etc/shadow",
-  "/etc/group", "/etc/gshadow", "/etc/subuid", "/etc/subgid", "/etc/homedash/", "/etc/nftables*",
-  "/etc/systemd/system/homedash-agent-cage*", "/root/", "/home/homedash/", "/usr/local/bin/homedash-*",
-  "/usr/local/bin/omp", "/home/homedash-agent/.omp/agent/hooks/"];
-const protectedPath = (word: string): boolean => {
+// HomeDash's refused-command list, as an omp hook. The hub writes it,
+// root-owned, to the agent's ~/.omp/agent/hooks/pre/ at enrollment and
+// again before every job round, so a job cannot disarm the next one. A
+// job runs as root: this hook is the stated rule and the log line, not
+// the control (see docs/running/safety.md). The logic mirrors
+// internal/gate/gate.go's Check, plus three things a root job may not do:
+// touch the hub's hold on this machine (HOLD, for every tool), and name
+// the hub or another remote (FLEET, the addresses the hub writes to
+// /etc/homedash/fleet-addrs before the round).
+const HOLD = ["/etc/ssh/", "authorized_keys", "/etc/sudoers", "/etc/pam.d/", "/etc/homedash/", "/home/homedash/",
+  "/usr/local/bin/homedash-", "/usr/local/bin/omp", "/home/homedash-agent/.omp/agent/hooks/"];
+const holdPath = (word: string): boolean => {
   let w = String(word ?? "").replace(/^["']|["']$/g, "");
   const eq = w.lastIndexOf("=");
   if (eq >= 0 && w[eq + 1] === "/") w = w.slice(eq + 1);
-  return PROTECTED.some((p) => p.endsWith("/") ? (w === p.slice(0, -1) || w.startsWith(p))
-    : p.endsWith("*") ? w.startsWith(p.slice(0, -1))
-    : !p.startsWith("/") ? w.includes(p) : w === p);
+  return HOLD.some((p) => p.endsWith("/") ? (w === p.slice(0, -1) || w.startsWith(p))
+    : !p.startsWith("/") ? w.includes(p) : w.startsWith(p));
 };
+let FLEET: string[] = [];
+try {
+  const { readFileSync } = require("node:fs");
+  FLEET = String(readFileSync("/etc/homedash/fleet-addrs", "utf8")).split("\n").map((x) => x.trim()).filter(Boolean);
+} catch { FLEET = []; }
+const namesFleet = (command: string): string =>
+  FLEET.find((a) => new RegExp("(^|[^0-9A-Za-z.:-])" + a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "($|[^0-9A-Za-z-])").test(command)) ?? "";
 const SYSTEM_PATHS = new Set(["/", "/*", "/etc", "/etc/*", "/usr", "/usr/*", "/var", "/var/*", "/boot", "/lib", "/lib64",
   "/bin", "/sbin", "/home", "/home/*", "/root", "/dev", "/proc", "/sys", "/opt", "/srv"]);
 const WRAPPERS = new Set(["sudo", "doas", "nohup", "env", "command", "exec", "time", "nice"]);
@@ -64,11 +69,10 @@ const anyPath = (xs: string[], ...subs: string[]) => xs.some((x) => subs.some((s
 const RULES: Array<(p: string, a: string[]) => string> = [
   (p, a) => ((p === "ufw" && has(a.slice(0, 1), "disable", "reset")) || (p === "iptables" && has(a, "-F", "--flush")) ||
     (p === "nft" && a.join(" ") === "flush ruleset") ||
-    (p === "nft" && has(a.slice(0, 1), "delete", "flush") && has(a, "homedash-agent")) ||
-    (p === "systemctl" && has(a.slice(0, 1), "stop", "disable", "mask") && has(a.slice(1), "ufw", "firewalld", "nftables", "homedash-agent-cage", "homedash-agent-cage.service"))
+    (p === "systemctl" && has(a.slice(0, 1), "stop", "disable", "mask") && has(a.slice(1), "ufw", "firewalld", "nftables"))
     ? "switching off the firewall" : ""),
   (p, a) => ((p === "systemctl" && has(a.slice(0, 1), "stop", "disable", "mask") && has(a.slice(1), "ssh", "sshd", "ssh.socket", "ssh.service", "sshd.service")) ||
-    (["rm", "mv", "truncate", "shred"].includes(p) && anyPath(a, "/etc/ssh/", "authorized_keys")) ||
+    (["rm", "mv", "truncate", "shred", "cp", "install", "chattr", "chmod", "chown"].includes(p) && a.some(holdPath)) ||
     (["deluser", "userdel"].includes(p) && has(a, "homedash", "homedash-agent")) ||
     (p === "passwd" && has(a, "-l") && has(a, "homedash", "homedash-agent")) || (p === "usermod" && has(a, "-L") && has(a, "homedash", "homedash-agent"))
     ? "cutting the hub's own SSH access" : ""),
@@ -86,34 +90,12 @@ const RULES: Array<(p: string, a: string[]) => string> = [
   },
   (p, a) => (["shutdown", "poweroff", "halt", "reboot"].includes(p) || (p === "init" && has(a, "0", "6")) ||
     (p === "systemctl" && has(a, "poweroff", "halt", "reboot", "kexec")) ? "shutting down or rebooting a machine" : ""),
-  // The agent's account is in the docker group and reaches the daemon
-  // without the door, so the door's docker rules (gate.go, Privileged)
-  // are met here instead: no privileged container, no host namespace, no
-  // capability, no bind of /, the socket or a protected path.
-  (p, a) => {
-    if (p !== "docker") return "";
-    for (const x of a) {
-      if (x === "--privileged" || x === "--pid" || x === "--userns" || x === "--cap-add" || x === "--security-opt" ||
-        x.startsWith("--pid=") || x.startsWith("--userns=") || x.startsWith("--cap-add") || x.startsWith("--security-opt")) return "a privileged container";
-    }
-    for (let i = 0; i < a.length; i++) {
-      const x = a[i];
-      let src = "";
-      if (x === "-v" || x === "--volume" || x === "--mount") src = a[i + 1] ?? "";
-      else if (x.startsWith("-v=") || x.startsWith("--volume=") || x.startsWith("--mount=")) src = x.slice(x.indexOf("=") + 1);
-      if (!src) continue;
-      if (src.startsWith("type=")) {
-        const m = /(?:^|,)(?:source|src)=([^,]*)/.exec(src);
-        src = m ? m[1] : src;
-      }
-      src = src.split(",")[0].split(":")[0].replace(/^["']|["']$/g, "");
-      if (src === "/" || protectedPath(src) || src.startsWith("/etc") || src.startsWith("/var/run/docker.sock") || src.startsWith("/run/docker.sock")) return "a container mounting a protected path";
-    }
-    return "";
-  },
 ];
 
 export function check(command: string): string {
+  const addr = namesFleet(command);
+  if (addr) return "reaching the hub or another remote (" + addr + "); ask the hub for a shared workspace instead";
+  if (/>>?\s*\/etc\/(ssh\/|sudoers)/.test(command)) return "cutting the hub's own SSH access";
   if (/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/.test(command)) return "a fork bomb";
   if (/>>?\s*\/etc\/ssh\//.test(command)) return "editing SSH config by hand";
   for (const m of command.matchAll(/>>?\s*(\/dev\/\S+)/g)) { const r = systemDevice(m[1]); if (r) return r; }
@@ -137,7 +119,8 @@ export default function hook(pi: any): void {
       if (reason) return { block: true, reason: "refused by HomeDash: " + reason };
       return;
     }
+    if (["read", "grep", "find", "glob", "ls"].includes(event.toolName)) return;
     const path = event.input?.path ?? event.input?.file_path ?? event.input?.filePath;
-    if (path && protectedPath(String(path))) return { block: true, reason: "refused by HomeDash: a protected path: " + path };
+    if (path && holdPath(String(path))) return { block: true, reason: "refused by HomeDash: the hub's hold on this machine: " + path };
   });
 }

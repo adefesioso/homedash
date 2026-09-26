@@ -23,13 +23,11 @@ import (
 var snapshotScript string
 
 // reportInstruction is prepended to every job's text. The report is what
-// the hub's agent reads, and what the rebuild script is folded from.
-const reportInstruction = `You are working on this machine alone, on behalf of the HomeDash hub, as the account ` + gate.AgentAccount + `: you are not root and cannot become root. Your home (and whatever is mounted under it — that is your persistent working space), the working directory, and the house's shared storage mounted on this machine are yours to write; the rest of the system is read-only to you, and the house's network is closed to you. You can run docker yourself for the containers your work needs, but not a privileged container, a host namespace, an added capability, or a bind of / or the docker socket. When the work needs root — a package, a service, a file outside your directories, a mount, a data disk to partition or format and add to /etc/fstab (never the disk the system runs from; that is refused) — run ` + "`homedash-sudo COMMAND...`" + `: the hub checks the command, runs it as root, and returns the output; a refusal comes back as an error you must relay, not route around. Do the work below, then end with a section titled "Report" that says: what you changed, what you could not do, and — as shell commands that would make each change again on a fresh Debian, in order — every package installed, file written (inline as a heredoc if small), service enabled, and mount made. If you produced data that should survive a rebuild, name its path under "Data".
+// the hub's agent reads, and the homedash-changes block in it is what the
+// rebuild script and the catalog are folded from.
+const reportInstruction = `You are root on this machine, working alone on behalf of the HomeDash hub. The machine is yours to change: packages, drivers, services, containers of any kind, files anywhere, a data disk to partition, format and mount. Three things you must never do: (1) cut this machine's connection to the hub — leave sshd and /etc/ssh, the homedash account, its key and its line in /etc/sudoers.d, and the network path to the hub alone, and do not reboot or shut down; (2) touch the hub; (3) touch another machine in the house — never ssh to, mount, or connect to an address in ` + fleet.FleetAddrs + `. If the work needs another machine, say so in your report: the hub gives that machine its own job, or shares a workspace between you. The hub checks its hold on this machine when you finish and puts back anything you changed. A refused tool call comes back as an error you must relay, not route around. Do the work below, then end with a section titled "Report": what you changed and what you could not do. Close the report with a fenced code block tagged homedash-changes holding one JSON object, every key optional: "packages", "services", "files", "mounts" (arrays of the shell commands that make each change again on a fresh Debian, in order; a small file inline as a heredoc), "stacks" (compose projects you started, stopped or changed, with their compose file's path), "catalog" (array of {"entry", "note"}: a catalog entry this machine proved wrong or out of date, or a stack worth saving), "data" (paths that must survive a rebuild), "proposal" ({"title", "body"}: only when something about HomeDash itself would have made this job easier).
 
 `
-
-// agentHome is where the job account keeps everything it owns.
-const agentHome = "/home/" + gate.AgentAccount
 
 // memoryFloor is what omp needs to run at all; below it the kernel kills
 // it before the first token.
@@ -60,13 +58,10 @@ func (j *Jobs) Start(ctx context.Context, h *store.Host, cwd, text string, windo
 		return nil, &OfflineError{Host: h.Name}
 	}
 	if cwd == "" {
-		cwd = agentHome
+		cwd = gate.AgentHome
 	}
 	if !strings.HasPrefix(cwd, "/") {
 		return nil, errors.New("the working directory must be an absolute path")
-	}
-	if err := gate.Privileged("mkdir -p " + cwd); err != nil {
-		return nil, err
 	}
 	var facts fleet.Facts
 	_ = json.Unmarshal(h.Facts, &facts)
@@ -88,7 +83,7 @@ func (j *Jobs) Start(ctx context.Context, h *store.Host, cwd, text string, windo
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to %s: %w", h.Name, err)
 	}
-	if r, err := remote.RunOn(ctx, c, []string{"test", "-d", cwd}, nil); err != nil || r.ExitCode != 0 {
+	if r, err := remote.RunOn(ctx, c, []string{"sudo", "-n", "test", "-d", cwd}, nil); err != nil || r.ExitCode != 0 {
 		c.Close()
 		return nil, fmt.Errorf("%s does not exist on %s", cwd, h.Name)
 	}
@@ -113,31 +108,6 @@ func (j *Jobs) Start(ctx context.Context, h *store.Host, cwd, text string, windo
 	}
 	go j.round(context.Background(), job, h, prompt+text, false, c)
 	return job, nil
-}
-
-// sharedPaths is the shared storage a job on this host may write: the
-// cluster it is the gateway of, and every workspace it is a member of.
-// Both are mounted by root and owned by the hub's account; the job's
-// account is in that group, so permission is already there and the unit
-// only has to leave the paths writable.
-func (j *Jobs) sharedPaths(ctx context.Context, hostID int64) []string {
-	var out []string
-	clusters, _ := j.Store.Clusters(ctx)
-	for _, c := range clusters {
-		if c.GatewayID == hostID {
-			out = append(out, c.Path)
-		}
-	}
-	workspaces, _ := j.Store.Workspaces(ctx, 0)
-	for _, w := range workspaces {
-		for _, m := range w.Members {
-			if m.HostID == hostID {
-				out = append(out, w.Path)
-				break
-			}
-		}
-	}
-	return out
 }
 
 // Correct is a follow-up turn on the same remote session, so the remote
@@ -249,6 +219,12 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 		_ = j.Store.SetJobSnapshot(ctx, job.ID, "none")
 		_ = j.Store.AppendJobEvent(ctx, job.ID, `{"type":"stderr","text":"snapshot: `+strings.ReplaceAll(err.Error(), `"`, `'`)+`"}`)
 	}
+	// What the job meets on its own tools, fresh: whatever the last round
+	// did to the hook or the fleet's addresses is undone here.
+	if err := j.Fleet.ArmJob(ctx, c, h); err != nil {
+		end("failed", "", "could not write the hook: "+err.Error())
+		return
+	}
 
 	omp := []string{"omp", "--mode", "json", "-p", "--cwd", job.Cwd, "--approval-mode", "yolo",
 		"--max-time", strconv.Itoa(job.TimeoutS), "--no-title"}
@@ -263,25 +239,18 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 	// when the pool gains a model. So the cache is rebuilt right before the
 	// run, with the door up: `omp models` is the priming step.
 	inner := `rm -f "$HOME"/.omp/agent/models.db "$HOME"/.omp/agent/models.db-*; omp models >/dev/null 2>&1; exec ` + remote.Quote(omp)
-	// The job's account, inside a unit the kernel enforces: no privilege
-	// to gain, the system read-only, its own /tmp, a task cap, a clock.
+	// Root, in a unit: a name Kill can stop, a clock, a task cap, and the
+	// memory and CPU caps Settings sets. Nothing else is fenced — the
+	// machine is the job's; the hub's hold is restored after.
 	argv := []string{"sudo", "-n", "systemd-run", "--quiet", "--pipe", "--wait", "--collect",
 		"--unit=homedash-job-" + strconv.FormatInt(job.ID, 10) + "-r" + strconv.Itoa(job.Rounds),
-		"--uid=" + gate.AgentAccount, "--gid=" + gate.AgentAccount, "--working-directory=" + job.Cwd,
-		"--setenv=HOME=" + agentHome, "--setenv=PATH=/usr/local/bin:/usr/bin:/bin", "--setenv=LANG=C.UTF-8",
+		"--working-directory=" + job.Cwd,
+		"--setenv=HOME=" + gate.AgentHome, "--setenv=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "--setenv=LANG=C.UTF-8",
 		"--setenv=OMP_AUTH_BROKER_URL=http://" + j.Fleet.VaultAddr}
-	props := []string{"NoNewPrivileges=yes", "ProtectSystem=strict", "ProtectKernelTunables=yes", "ProtectKernelModules=yes",
-		"ProtectControlGroups=yes", "ProtectClock=yes", "PrivateTmp=yes", "RestrictSUIDSGID=yes", "TasksMax=512",
-		"RuntimeMaxSec=" + strconv.Itoa(job.TimeoutS+60), "ReadWritePaths=" + agentHome}
-	if job.Cwd != agentHome && !strings.HasPrefix(job.Cwd, agentHome+"/") {
-		props = append(props, "ReadWritePaths="+job.Cwd)
-	}
-	// The house's shared storage, wherever the job started. The "-" is
-	// systemd's: a path that isn't there (a workspace not mounted yet, a
-	// cluster whose members are off) is skipped, not a failed unit.
-	for _, p := range j.sharedPaths(ctx, h.ID) {
-		props = append(props, "ReadWritePaths=-"+p)
-	}
+	// The hub's hold is put back when the unit stops, however it stops —
+	// done, timed out, killed — as root, before the hub looks again over
+	// its own sudo, which the job may have been what broke.
+	props := []string{"TasksMax=4096", "RuntimeMaxSec=" + strconv.Itoa(job.TimeoutS+60), "ExecStopPost=" + j.Fleet.HoldStopPost()}
 	if v, _ := j.Store.Setting(ctx, "jobs.memory_max"); strings.TrimSpace(v) != "" {
 		props = append(props, "MemoryMax="+strings.TrimSpace(v))
 	}
@@ -376,6 +345,13 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 		b, _ := json.Marshal(map[string]string{"type": "stderr", "text": se})
 		_ = j.Store.AppendJobEvent(ctx, job.ID, string(b))
 	}
+	j.checkHold(ctx, c, job, h)
+	if changes, bad := parseChanges(report); bad != "" {
+		b, _ := json.Marshal(map[string]string{"type": "stderr", "text": "change report: " + bad})
+		_ = j.Store.AppendJobEvent(ctx, job.ID, string(b))
+	} else if changes != "" {
+		_ = j.Store.SetJobChanges(ctx, job.ID, changes)
+	}
 	var ee *ssh.ExitError
 	switch {
 	case err == nil:
@@ -395,6 +371,51 @@ func (j *Jobs) round(ctx context.Context, job *store.Job, h *store.Host, prompt 
 	default:
 		end("failed", report, err.Error())
 	}
+}
+
+// checkHold puts back whatever of the hub's hold the round changed, over
+// the round's own connection, and says so in the job and the event log.
+func (j *Jobs) checkHold(ctx context.Context, c *ssh.Client, job *store.Job, h *store.Host) {
+	restored, broken, err := j.Fleet.CheckHold(ctx, c)
+	line := func(text string) {
+		b, _ := json.Marshal(map[string]string{"type": "hold", "text": text})
+		_ = j.Store.AppendJobEvent(ctx, job.ID, string(b))
+	}
+	switch {
+	case err != nil:
+		line("could not check the hub's hold: " + err.Error())
+		j.Notify("host.hold_unchecked", h.Name, fmt.Sprintf("job %d on %s: could not check the hub's hold: %s", job.ID, h.Name, err))
+		return
+	case restored != "":
+		line("restored: " + restored)
+		j.Notify("host.hold_repaired", h.Name, fmt.Sprintf("job %d on %s changed the hub's hold; restored: %s", job.ID, h.Name, restored))
+	}
+	if broken != "" {
+		line("broken: " + broken)
+		j.Notify("host.hold_broken", h.Name, fmt.Sprintf("job %d on %s: the hub's hold needs a person: %s", job.ID, h.Name, broken))
+	}
+}
+
+// parseChanges finds the last homedash-changes fenced block in a report
+// and returns it as compact JSON. No block is "", ""; a block that is not
+// one JSON object is "", and why.
+func parseChanges(report string) (string, string) {
+	const fence = "```homedash-changes"
+	i := strings.LastIndex(report, fence)
+	if i < 0 {
+		return "", ""
+	}
+	body := report[i+len(fence):]
+	end := strings.Index(body, "```")
+	if end < 0 {
+		return "", "the homedash-changes block is not closed"
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(strings.TrimSpace(body[:end])), &obj); err != nil {
+		return "", "the homedash-changes block is not a JSON object: " + err.Error()
+	}
+	out, _ := json.Marshal(obj)
+	return string(out), ""
 }
 
 // snapshot runs snapshot.sh on the connection as root and returns what

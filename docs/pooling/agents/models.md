@@ -15,5 +15,6 @@ may itself contain slashes (`openrouter/openai/gpt-4o-mini`).
 The `homedash` provider's picker isn't only this hub's own machines: a
 model a connected peer currently offers appears too, since the router
 already [places a request there](../inference.md#getting-the-models-onto-the-machines)
-when nothing local holds it. Picking one is picking the space, not just
-the house.
+when nothing local holds it — for the hub's agent. **A job never goes to
+a peer**: a root agent must not follow a stranger's model, so a job's
+router is local-only, and a model only a peer holds is refused.

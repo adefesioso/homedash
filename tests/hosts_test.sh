@@ -230,8 +230,7 @@ test_no_homedash_agent_on_remote() {
     *"/homedash"*) fail "no 'homedash' binary installed on remote-big" ;;
     *) pass "no 'homedash' binary installed on remote-big" ;;
   esac
-  # A job runs in a transient unit the hub starts for it, and the agent's
-  # cage is a oneshot that loads an nftables rule at boot; nothing of
+  # A job runs in a transient unit the hub starts for it; nothing of
   # HomeDash's stays running or listens on a remote.
   out=$("$SSH" remote-big "systemctl list-units --type=service --state=running 2>/dev/null | grep -i homedash; sudo ss -ltnp 2>/dev/null | grep -i homedash; echo done" 2>/dev/null)
   case "$out" in

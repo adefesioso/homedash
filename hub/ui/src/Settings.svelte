@@ -89,7 +89,7 @@
   // updateOmp: the hub runs omp's own updater against GitHub's latest
   // release on itself, and every online, SSH-reachable remote does the
   // same to its own omp (not a full Re-provision — accounts, key and
-  // cage are left alone), one host at a time, collecting failures the
+  // hook are left alone), one host at a time, collecting failures the
   // way "Update credentials everywhere" on Hosts does (one host's
   // failure must not hide another's). Mobile remotes have no SSH and no
   // omp binary, so they're skipped.
@@ -230,9 +230,11 @@
     <label>Rounds before a job needs you <input type="number" min="1" max="10" placeholder="3" bind:value={s['agent.rounds']} /></label>
     <label>Per-job time, seconds <input type="number" min="60" placeholder="1200" bind:value={s['jobs.timeout']} /></label>
     <label>Jobs kept per host <input type="number" min="5" placeholder="20" bind:value={s['jobs.retention']} /></label>
-    <label class="check"><input type="checkbox" checked={s['jobs.sudo'] !== 'off'} onchange={(e) => (s['jobs.sudo'] = e.target.checked ? '' : 'off')} /> Jobs may ask for root through homedash-sudo</label>
     <label>Per-job memory cap, e.g. 2G (blank for none) <input placeholder="none" bind:value={s['jobs.memory_max']} /></label>
     <label>Per-job CPU quota, e.g. 200% (blank for none) <input placeholder="none" bind:value={s['jobs.cpu_quota']} /></label>
+    <label>Proposals repository <input placeholder="https://gitea.canica.pe/adefesioso/homedash" bind:value={s['proposals.repo']} spellcheck="false" /></label>
+    <label>Proposals token (Gitea, issue write; blank turns proposals off) <input type="password" autocomplete="off" placeholder="off" bind:value={s['proposals.token']} spellcheck="false" /></label>
+    <label>Proposals per day, at most <input type="number" min="1" max="20" placeholder="3" bind:value={s['proposals.daily']} /></label>
     <label>Mountpoint fullness threshold, % <input type="number" min="50" max="99" placeholder="90" bind:value={s['notify.disk_percent']} /></label>
     <label>Network scan interval, minutes (0 is off) <input type="number" min="0" placeholder="10" bind:value={s['network.scan_minutes']} /></label>
     <label>Forget unnamed devices unseen for, days <input type="number" min="1" placeholder="30" bind:value={s['network.forget_days']} /></label>
