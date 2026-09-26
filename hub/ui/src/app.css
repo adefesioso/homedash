@@ -219,7 +219,7 @@ dd { margin: 0; overflow-wrap: anywhere; }
 button, .btn, summary { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 @media (pointer: coarse) {
   button, .btn, input:not([type=checkbox]):not([type=radio]), select { min-height: 2.75rem; }
-  button.small { min-height: 2.4rem; padding-inline: 0.65rem; }
+  button.small { min-height: 2.75rem; padding-inline: 0.65rem; }
   button.link, button.dismiss { min-height: 0; }
   input[type=checkbox], input[type=radio] { width: 1.15rem; height: 1.15rem; }
   input, select, textarea { font-size: 16px; }

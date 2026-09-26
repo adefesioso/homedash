@@ -34,8 +34,8 @@ table, form and plate — a front-plate is `.card.plate` with a `header`
 strip and a `footer` of actions, and any tab may draw one. `ui/` holds
 the few pieces that are markup as well as look, so they are written once:
 `Notice` (an error or a warning, with its ×), `Stat` (a value over its
-label), `Fill` (a gauge bar that turns red when hot) and `Seg` (a
-segmented switch). A tab styles only what is its own — the model grid,
+label), `Fill` (a gauge bar that turns red when hot), `Seg` (a segmented
+switch) and `Menu` (a row's ⋯ of rarer and destructive actions). A tab styles only what is its own — the model grid,
 the health checks, the settings index — and never re-declares a plate, a
 gauge or an error line.
 
