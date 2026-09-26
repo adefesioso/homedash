@@ -14,6 +14,7 @@ Every remote and the hub carry [`omp`](https://github.com/can1357/oh-my-pi). You
 | Model | Per remote: fleet default or card override, the house's pool included |
 | Rebuild script | Every change report folded into one script per host |
 | Proposal | One issue on the project, filed by the hub's agent |
+| Usage | Tokens spent by each agent, and served by each machine the router reaches |
 
 ## Where each lives
 
@@ -23,4 +24,5 @@ Every remote and the hub carry [`omp`](https://github.com/can1357/oh-my-pi). You
 - [Logs](logs.md) — the remote's session file and the hub's copy of every event.
 - [Credentials and secrets](credentials.md) — the hub is the vault; a remote gets a short-lived credential or a named secret for one job.
 - [Rebuild script](rebuild.md) — a dead disk's only record is your memory; the script takes a fresh Debian back to the machine.
+- [Usage](usage.md) — who spent what, who served it, who asked; the Usage tab.
 - [Proposals](proposals.md) — rough edges reach the project as one redacted, capped issue.

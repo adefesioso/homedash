@@ -23,7 +23,8 @@ direction once. `RollupMetrics` averages raw rows into `metrics_hourly`
 hourly — only the hours not yet rolled — and drops raw rows
 older than two days. `RollupUsage` does the same for
 [job token usage](../agent/jobs.md#tables), summed rather than
-averaged, once an hour alongside it.
+averaged, once an hour alongside it, and drops hub-agent and served
+usage rows past 31 days.
 
 ## The scan
 

@@ -37,6 +37,13 @@ Agents), which deletes omp's on-disk cache and forces the discovery.
 A hub-side PTY running omp with no tools, named, reattachable, its
 scrollback kept after the process ends. [windows.md](windows.md)
 
+## Hub usage
+
+`ScanUsage`, once a minute, reads every `agent/sessions/**/*.jsonl` past
+its last counted offset (`hub_usage_files`), whole lines only, and keeps
+each assistant reply's usage in `hub_usage` — a window is a TUI with no
+event stream, so its session file is the record. `GET /api/usage/hub`.
+
 ## Remote jobs
 
 One SSH round: snapshot, hook armed, `omp` as root, events streamed, hold

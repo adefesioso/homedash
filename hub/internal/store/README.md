@@ -22,12 +22,13 @@ packages that own the behaviour document the meaning of their tables:
 | File | Tables | Owner |
 | --- | --- | --- |
 | `store.go` | `events`, `settings`, `windows`, `jobs`, `job_events`, `proposals` | [server](../server/README.md), [agent](../agent/README.md) |
-| `hosts.go` | `hosts`, `enroll_codes`, `metrics`, `metrics_hourly` | [fleet](../fleet/README.md) |
+| `hosts.go` | `hosts`, `enroll_codes`, `metrics`, `metrics_hourly`, `usage`, `usage_hourly` | [fleet](../fleet/README.md) |
 | `secrets.go` | `secrets` | [fleet](../fleet/README.md#secrets) |
 | `tasks.go` | `tasks`, `task_runs`, `catalog` | [tasks](../tasks/README.md), [apps](../apps/README.md) |
 | `clusters.go` | `clusters`, `cluster_members`, `workspaces`, `workspace_members` | [storage](../storage/README.md) |
 | `auth.go` | `users`, `credentials`, `sessions`, `invites`, `tokens` | [auth](../auth/README.md) |
 | `peers.go` | `peers`, `peer_jobs`, `services`, `fronts`, `peer_bytes` | [peers](../peers/README.md) |
+| `usage.go` | `hub_usage`, `hub_usage_files`, `served` | [agent](../agent/README.md#hub-usage), [pool](../pool/README.md) |
 
 Two things here are the structural half of the gate: `Host(ref)` is how
 every remote operation resolves a name or id, and an unknown one is

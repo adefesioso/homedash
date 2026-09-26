@@ -928,6 +928,11 @@ func (p *Peers) handleJob(s network.Stream) {
 	req := httptest.NewRequest(http.MethodPost, hdr.Path, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-HomeDash-Local-Only", "1")
+	who := pr.Name
+	if who == "" {
+		who = from.ShortString()
+	}
+	req.Header.Set(pool.CallerHeader, "peer:"+who)
 	w := &streamWriter{s: s, header: http.Header{}}
 	p.Router.ServeHTTP(w, req)
 	_ = p.Store.FinishPeerJob(ctx, rowID, w.status < 400, 0)

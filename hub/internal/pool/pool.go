@@ -509,7 +509,7 @@ func (p *Pool) place(w http.ResponseWriter, r *http.Request, path, model string,
 				// disappears below.
 			} else if hm.hostID != 0 {
 				if h := p.acquire(ctx, hm.hostID); h != nil {
-					p.proxy(w, r, path, h, body, Decision{Host: h.Name, Reason: "this was the conversation's home from turn one"}, key)
+					p.proxy(w, r, path, model, h, body, Decision{Host: h.Name, Reason: "this was the conversation's home from turn one"}, key)
 					return
 				}
 			}
@@ -517,7 +517,7 @@ func (p *Pool) place(w http.ResponseWriter, r *http.Request, path, model string,
 		// 2. A free local machine with the model.
 		h, reason := p.pick(ctx, model)
 		if h != nil {
-			p.proxy(w, r, path, h, body, Decision{Host: h.Name, Reason: reason}, key)
+			p.proxy(w, r, path, model, h, body, Decision{Host: h.Name, Reason: reason}, key)
 			return
 		}
 		// 3. A peer gets first refusal before the queue — and a hub whose
@@ -667,7 +667,7 @@ func (p *Pool) release(hostID int64) {
 }
 
 // proxy streams one request to one machine and remembers the home.
-func (p *Pool) proxy(w http.ResponseWriter, r *http.Request, path string, h *store.Host, body []byte, d Decision, key string) {
+func (p *Pool) proxy(w http.ResponseWriter, r *http.Request, path, model string, h *store.Host, body []byte, d Decision, key string) {
 	defer p.release(h.ID)
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, ollamaURL(h)+path, bytes.NewReader(body))
 	if err != nil {
@@ -692,7 +692,11 @@ func (p *Pool) proxy(w http.ResponseWriter, r *http.Request, path string, h *sto
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	stream(w, resp.Body)
+	m := &meter{r: resp.Body}
+	stream(w, m)
+	if resp.StatusCode < 400 {
+		p.record(r, m, h.Name, false, model)
+	}
 }
 
 // peerError is a peer that was actually asked and said no, or whose
@@ -722,11 +726,13 @@ func (p *Pool) tryPeer(w http.ResponseWriter, r *http.Request, path, model strin
 		return false, &peerError{peer: name, err: err}
 	}
 	defer rc.Close()
+	m := &meter{r: rc}
 	buf := make([]byte, 32<<10)
-	n, rerr := rc.Read(buf)
+	n, rerr := m.Read(buf)
 	if n == 0 && rerr != nil {
 		return false, &peerError{peer: name, err: rerr}
 	}
+	defer p.record(r, m, name, true, model)
 	if key != "" {
 		p.remember(key, home{peer: name, at: time.Now()})
 	}
@@ -744,7 +750,7 @@ func (p *Pool) tryPeer(w http.ResponseWriter, r *http.Request, path, model strin
 		}
 	}
 	if rerr == nil {
-		stream(w, rc)
+		stream(w, m)
 	}
 	return true, nil
 }

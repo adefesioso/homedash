@@ -37,6 +37,13 @@ went and the one reason:
    seconds. A queued request sleeps until a machine is released, and
    tries again then; it does not poll.
 
+**Metering**: every answered request, local or peer, is read as it
+streams for its token counts (Ollama's final `prompt_eval_count`/
+`eval_count`, OpenAI's `usage`, plain or SSE) and kept in `served` with
+the machine and `X-HomeDash-Caller`, which each door sets and overwrites:
+`hub` (the hub agent's token), `client:<name>`, `remote:<host>` (the job
+door), `peer:<name>`. `GET /api/usage/served`.
+
 A model is matched exactly (`name` or `name:latest`), never substituted.
 Streaming responses are flushed per chunk.
 

@@ -30,6 +30,10 @@
   --bad-dim: color-mix(in srgb, var(--bad) 14%, transparent);
   --accent-dim: color-mix(in srgb, var(--accent) 14%, transparent);
   --shadow: 0 1px 2px rgba(20, 24, 30, 0.06), 0 0 0 1px var(--line);
+  /* Chart series, in this fixed order and never cycled: identity only,
+     never status (green and red keep meaning online and offline). */
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
   --sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   --r: 6px;
@@ -55,6 +59,8 @@
     --ok: #4fb477;
     --bad: #d9534f;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--line);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
   }
 }
 
@@ -206,6 +212,9 @@ tr.detail td, tr.detail:hover td { background: var(--sunk); }
 .pill.ok { color: var(--ok); background: var(--ok-dim); }
 .pill.bad { color: var(--bad); background: var(--bad-dim); }
 .pill.accent { color: var(--accent); background: var(--accent-dim); }
+
+/* A chart's key: a swatch in the series colour beside words in ink */
+.swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; flex: none; vertical-align: middle; }
 
 /* Definition lists in Settings and detail views */
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; margin: 0 0 0.75rem; }

@@ -92,6 +92,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/hosts/{host}/metrics", s.hostMetrics)
 	mux.HandleFunc("GET /api/hosts/{host}/usage", s.hostUsage)
 	mux.HandleFunc("GET /api/usage", s.usageTotals)
+	mux.HandleFunc("GET /api/usage/hub", s.hubUsage)
+	mux.HandleFunc("GET /api/usage/served", s.servedUsage)
 	mux.HandleFunc("POST /api/hosts/{host}/lock", s.setLock)
 	mux.HandleFunc("PUT /api/hosts/{host}/address", s.setAddress)
 	mux.HandleFunc("POST /api/hosts/{host}/run", s.runCommand)
@@ -118,7 +120,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/models/delete", s.deleteModel)
 	// The router: the hub is an Ollama endpoint. These are Ollama's own
 	// paths, so existing clients point at the hub unchanged.
-	router := s.Pool.Serve()
+	router := s.caller(s.Pool.Serve())
 	for _, p := range []string{"/api/tags", "/api/chat", "/api/generate", "/api/embed", "/api/embeddings", "/api/show", "/api/version", "/v1/"} {
 		mux.Handle(p, router)
 	}

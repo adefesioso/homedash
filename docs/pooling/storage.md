@@ -37,9 +37,12 @@ A pooled drive puts a live mount over disks you care about, so a member
 that carries the system, swap or the cluster's own mount is
 [refused in code](../running/safety.md), and removing a member rebuilds
 the mount without it while leaving its files exactly where they are. The
-Storage tab lists clusters above the per-machine disk view and marks
-which disks are off-limits, which belong to which cluster, and which
-host reporting them is currently offline (its rows are stale, not gone).
+Storage tab is a map: a ring for the house's whole disk (clusters,
+free to pool, system, unformatted), every machine's disks on the left,
+the clusters on the right with a ring each of capacity by member, and a
+line from each member disk to its cluster in that cluster's colour —
+dashed red while unreachable. It marks which disks are off-limits and
+which host reporting them is offline (its rows are stale, not gone).
 A raw disk — one with no filesystem on it at all — has nothing to
 measure free space on, so it is listed as **unformatted — give this
 host a job to format and mount it** rather than left out or offered as

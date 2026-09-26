@@ -6,21 +6,23 @@ runtime — the two typefaces (Inter, JetBrains Mono, latin only) ride
 along in the bundle rather than being fetched. Each tab in `src/` is one
 file named for it — Hosts, Network, Storage, Apps, Catalog, Models,
 Agents (with Terminal), Jobs, Usage, Tasks, Peers, Health, Events, Rules,
-Settings —
-and
-`App.svelte` is the shell: sign-in through `Auth.svelte`, then a rail
-down the left with
-the tabs in the docs' order and grouped the way the docs are (the house,
-the work, the space, the hub). Beside each word the rail carries what the
-tab would say first — how many machines, a red LED if one is offline, a
-job that needs you — so the place to look is visible before it is read.
-Each tab opens on an honest empty state (`Empty.svelte`, one line and the
+Settings — and
+`App.svelte` is the shell: sign-in through `Auth.svelte`, then, on a
+screen wider than 860px, a desktop — the open tab is a window over a
+wallpaper (title bar, minimise to the desktop's icons, maximise
+remembered per browser) and the tabs sit in a taskbar along the bottom,
+grouped the way the docs are (the house, the work, the space, the hub),
+with a start menu holding their words, the account and sign-out, and a
+tray with the hub's health LED and a clock. On each tab's button sits
+what the tab would say first — how many machines, a red LED if one is
+offline, a job that needs you — so the place to look is visible before
+it is read. Each tab opens on an honest empty state (`Empty.svelte`, one line and the
 one action) when there is nothing yet. `Cli.svelte` is the one page that
 is not a tab: `#cli?port=…&state=…`, where a signed-in person approves
 the command line that opened the browser here, as the
 [cli package](../internal/cli/README.md) describes. `lib/api.js` is the
 one fetch wrapper; `lib/format.js` formats bytes and ages;
-`Icon.svelte` holds the rail's glyphs; `ModelPick.svelte` is the one
+`Icon.svelte` holds the tabs' glyphs; `ModelPick.svelte` is the one
 provider-and-model picker, used by Settings for the fleet defaults and by
 a host card for its override, so a model is chosen the same way
 everywhere. `Restore.svelte` is the one restore form — an export file
@@ -35,7 +37,9 @@ strip and a `footer` of actions, and any tab may draw one. `ui/` holds
 the few pieces that are markup as well as look, so they are written once:
 `Notice` (an error or a warning, with its ×), `Stat` (a value over its
 label), `Fill` (a gauge bar that turns red when hot), `Seg` (a segmented
-switch) and `Menu` (a row's ⋯ of rarer and destructive actions). A tab styles only what is its own — the model grid,
+switch), `Menu` (a row's ⋯ of rarer and destructive actions) and
+`Donut` (parts of one whole as a ring); charts take `--s1`…`--s8`, a
+fixed series order that never means status. A tab styles only what is its own — the model grid,
 the health checks, the settings index — and never re-declares a plate, a
 gauge or an error line.
 
@@ -49,14 +53,5 @@ first session is opened, not with the page. A
 viewer sees every tab read-only; the API refuses the writes, the panel
 merely hides the buttons.
 
-A phone is a first-class way in. Under 860px the rail is a strip pinned
-to the top that scrolls the active tab into view; under 560px a
-`table.stack` lays each row out as a wrapped card with its detail row
-full width, and the Models matrix pins its name column while the rest
-scrolls; on a coarse pointer every control is ≥38px tall and text inputs
-are 16px so iOS does not zoom on focus; `public/manifest.webmanifest`
-and the icons beside it let the panel be added to a home screen. Every
-tab fits 390px without the page itself scrolling sideways — a table
-scrolls in its own box instead; Escape dismisses an inline card (New
-remote, an edit) the way it would a `<dialog>`; a tab's hash is matched
-loosely (`#Hosts`, `#hosts/x`) rather than only its exact lowercase id.
+A phone is a first-class way in: under 860px the desktop gives way to a
+strip and stacked rows — [phone.md](phone.md).

@@ -511,7 +511,10 @@ func (s *Store) RollupUsage(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM usage WHERE at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 days')`); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return s.pruneUsage(ctx)
 }
 
 // HostUsage returns one host's usage, bucketed by hour, oldest first:

@@ -512,6 +512,7 @@ func (f *Fleet) door(c *ssh.Client, h *store.Host, jobID int64) (string, func(),
 	if f.Router != nil {
 		local := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Header.Set("X-HomeDash-Local-Only", "1")
+			r.Header.Set("X-HomeDash-Caller", "remote:"+h.Name) // pool.CallerHeader; pool imports fleet
 			f.Router.ServeHTTP(w, r)
 		})
 		for _, p := range []string{"/api/tags", "/api/chat", "/api/generate", "/api/embed", "/api/embeddings", "/api/show", "/api/version", "/v1/"} {

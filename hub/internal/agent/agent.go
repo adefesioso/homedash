@@ -107,6 +107,7 @@ func (a *Agent) Start(ctx context.Context) error {
 		a.Notify("session.ended", w.Name, "session "+w.Name+" ended: hub restarted")
 	}
 	go a.run(ctx)
+	go a.runUsage(ctx)
 	return nil
 }
 

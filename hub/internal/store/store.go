@@ -38,7 +38,7 @@ func Open(ctx context.Context, stateDir string) (*Store, error) {
 	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	for _, sch := range []string{hostSchema, schema, secretSchema, taskSchema, catalogSchema, clusterSchema, authSchema, peerSchema, deviceSchema} {
+	for _, sch := range []string{hostSchema, schema, secretSchema, taskSchema, catalogSchema, clusterSchema, authSchema, peerSchema, deviceSchema, usageSchema} {
 		if _, err := db.ExecContext(ctx, sch); err != nil {
 			return nil, fmt.Errorf("apply schema: %w", err)
 		}
